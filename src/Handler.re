@@ -41,22 +41,6 @@ let headers =
     ("Access-Control-Allow-Credentials", Js.Json.boolean(true)),
   ]);
 
-let respond200 =
-  Js.Promise.(
-    Affect.to_promise
-    >. then_(Js.Json.stringifyAny >. resolve)
-    >. then_(
-         fun
-         | Some(body) => resolve(body)
-         | None => reject(Js.Exn.raiseError("could not stringify payload")),
-       )
-    >. then_(body =>
-         resolve(
-           AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200),
-         )
-       )
-  );
-
 let read: AWS.APIGatewayProxy.handler =
   (event, _) => {
     let params =
@@ -75,8 +59,26 @@ let read: AWS.APIGatewayProxy.handler =
     Affect.Infix.(
       App.Database.fetch(db, schoolyear, studentid, mp)
       <#> AWS.DynamoDB.itemsGet
-      |> respond200
-    );
+    )
+    |> Js.Promise.(
+         Affect.to_promise
+         >. then_(Js.Json.stringifyAny >. resolve)
+         >. then_(
+              fun
+              | Some(body) => resolve(body)
+              | None =>
+                reject(Js.Exn.raiseError("could not stringify payload")),
+            )
+         >. then_(body =>
+              resolve(
+                AWS.APIGatewayProxy.Result.make(
+                  ~body,
+                  ~headers,
+                  ~statusCode=200,
+                ),
+              )
+            )
+       );
   };
 
 let fetchUpdatedGrades = (authenticated, studentid, mp) => {
@@ -103,6 +105,24 @@ let write: AWS.APIGatewayProxy.handler =
       <#> List.map(App.Database.write(db))
       >>= T.sequence
       <#> Array.of_list
-      <#> Array.map(App.Genesis.gradeToDict)
-      |> respond200
-    );
+      <#> Array.map(App.Genesis.tToJs)
+    )
+    |> Js.Promise.(
+         Affect.to_promise
+         >. then_(Js.Json.stringifyAny >. resolve)
+         >. then_(
+              fun
+              | Some(body) => resolve(body)
+              | None =>
+                reject(Js.Exn.raiseError("could not stringify payload")),
+            )
+         >. then_(body =>
+              resolve(
+                AWS.APIGatewayProxy.Result.make(
+                  ~body,
+                  ~headers,
+                  ~statusCode=200,
+                ),
+              )
+            )
+       );

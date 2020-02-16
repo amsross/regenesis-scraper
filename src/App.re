@@ -26,7 +26,6 @@ module type Genesis = {
     grade: float,
   };
 
-  let gradeToDict: t => Js.Dict.t(string);
   let gradeHasChanged: (Js.Dict.t(float), t) => bool;
 
   let login:
@@ -87,18 +86,6 @@ module Genesis: Genesis = {
     grade,
   };
 
-  let gradeToDict = x =>
-    Js.Dict.fromList([
-      ("partition_key", x.partition_key),
-      ("sort_key", x.sort_key),
-      ("studentid", string_of_int(x.studentid)),
-      ("schoolyear", x.schoolyear),
-      ("mp", string_of_int(x.mp)),
-      ("course", x.course),
-      ("unixstamp", Js.Float.toString(x.unixstamp)),
-      ("grade", Js.Float.toString(x.grade)),
-    ]);
-
   let gradeHasChanged = (oldGrades, {course, grade}) =>
     Js.Dict.get(oldGrades, course)
     ->Belt.Option.map(o => o != grade)
@@ -155,7 +142,8 @@ module Database: Database = {
   let make = AWS.DynamoDB.make;
 
   let put:
-    (db, AWS.DynamoDB.put_params) => Affect.affect(AWS.DynamoDB.put_params) =
+    (db, AWS.DynamoDB.put_params('a)) =>
+    Affect.affect(AWS.DynamoDB.put_params('a)) =
     (db, item, error, success) => {
       AWS.DynamoDB.put(db, item, (err, _) =>
         Js.Nullable.isNullable(err)
@@ -209,11 +197,7 @@ module Database: Database = {
 
   let write = (db, grade) => {
     let params =
-      AWS.DynamoDB.put_params(
-        ~tableName,
-        ~item=Genesis.gradeToDict(grade),
-        (),
-      );
+      AWS.DynamoDB.put_params(~tableName, ~item=Genesis.tToJs(grade), ());
 
     Affect.Infix.(put(db, params) <#> const(grade));
   };

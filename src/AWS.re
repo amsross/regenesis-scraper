@@ -88,11 +88,11 @@ module DynamoDB = {
     "query";
 
   [@bs.deriving abstract]
-  type put_params = {
+  type put_params('a) = {
     [@bs.as "TableName"]
     tableName: string,
     [@bs.as "Item"]
-    item: Js.Dict.t(string),
+    item: 'a,
     [@bs.as "ReturnConsumedCapacity"] [@bs.optional]
     returnConsumedCapacity: string,
   };
@@ -104,7 +104,7 @@ module DynamoDB = {
   };
 
   [@bs.send]
-  external put: (t, put_params, callback(error, put_data)) => unit = "put";
+  external put: (t, put_params('a), callback(error, put_data)) => unit = "put";
 
   [@bs.new] [@bs.module "aws-sdk"] [@bs.scope "DynamoDB"]
   external make: unit => t = "DocumentClient";
