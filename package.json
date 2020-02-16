@@ -4,7 +4,8 @@
   "scripts": {
     "bundle": "browserify lib/js/src/Handler.bs.js --node > app.js",
     "build": "bsb -make-world",
-    "local": "AWS_REGION=us-east-1 npx serverless offline start --stage dev -v",
+    "local": "AWS_REGION=us-east-1 serverless offline start --stage dev -v",
+    "deploy": "serverless deploy",
     "start": "bsb -make-world -w",
     "clean": "bsb -clean-world"
   },
