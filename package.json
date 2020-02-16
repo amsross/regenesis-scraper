@@ -2,6 +2,7 @@
   "name": "regenesis-scraper",
   "version": "0.1.0",
   "scripts": {
+    "bundle": "browserify lib/js/src/Handler.bs.js --node > app.js",
     "build": "bsb -make-world",
     "local": "AWS_REGION=us-east-1 npx serverless offline start --stage dev -v",
     "start": "bsb -make-world -w",
@@ -13,6 +14,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "browserify": "^16.5.0",
     "nodemon": "^2.0.2",
     "serverless": "^1.63.0",
     "serverless-offline": "^5.12.1",
