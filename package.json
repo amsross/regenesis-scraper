@@ -15,19 +15,17 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "browserify": "^16.5.0",
-    "nodemon": "^2.0.2",
-    "serverless": "^1.63.0",
-    "serverless-offline": "^5.12.1",
-    "serverless-prune-plugin": "^1.4.1"
-  },
-  "dependencies": {
     "aws-sdk": "^2.617.0",
+    "browserify": "^16.5.0",
     "bs-abstract": "^0.18.0",
     "bs-effects": "^0.10.0",
     "bs-platform": "^6.2.1",
     "cheerio": "^1.0.0-rc.3",
     "got": "^10.5.5",
+    "nodemon": "^2.0.2",
+    "serverless": "^1.63.0",
+    "serverless-offline": "^5.12.1",
+    "serverless-prune-plugin": "^1.4.1",
     "tough-cookie": "^3.0.1"
   }
 }

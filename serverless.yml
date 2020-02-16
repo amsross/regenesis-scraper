@@ -53,7 +53,7 @@ custom:
 
 functions:
   read:
-    handler: lib/js/src/Handler.read
+    handler: app.read
     events:
       - http:
           method: GET
@@ -65,7 +65,7 @@ functions:
           method: GET
           path: /read/{studentid}/{schoolyear}/{mp}
   update:
-    handler: lib/js/src/Handler.write
+    handler: app.write
     events:
       - http:
           method: GET
