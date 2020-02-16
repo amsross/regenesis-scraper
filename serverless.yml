@@ -66,7 +66,13 @@ functions:
           path: /read/{studentid}/{schoolyear}/{mp}
   update:
     handler: app.write
+    timeout: 16
     events:
       - http:
           method: GET
           path: /update
+  storeGrades:
+    handler: app.update
+    timeout: 16
+    events:
+      - schedule: rate(2 hours)
