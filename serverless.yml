@@ -1,0 +1,72 @@
+service: regenesis-scraper
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: ${opt:stage, 'dev'}
+  memorySize: 128
+  environment:
+    AWS_ACCOUNT_ID: ${env:AWS_ACCOUNT_ID}
+    STUDENTIDS: ${env:STUDENTIDS}
+    GENESIS_URL: ${env:GENESIS_URL}
+    GENESIS_UNAME: ${env:GENESIS_UNAME}
+    GENESIS_PWORD: ${env:GENESIS_PWORD}
+    SERVICE: ${self:service}
+    STAGE: ${self:provider.stage}
+    REGION: ${opt:region, self:provider.region}
+  iamRoleStatements:
+    -  Effect: "Allow"
+       Action:
+         - "dynamodb:Query"
+         - "dynamodb:GetItem"
+         - "dynamodb:PutItem"
+       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:service}-${self:provider.stage}"
+
+resources:
+  Resources:
+    DynamoDBTableGrades:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: partition_key
+            AttributeType: S
+          - AttributeName: sort_key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: partition_key
+            KeyType: HASH
+          - AttributeName: sort_key
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+plugins:
+  - serverless-offline
+  - serverless-prune-plugin
+
+custom:
+  prune:
+    automatic: true
+    number: 2
+
+functions:
+  read:
+    handler: lib/js/src/Handler.read
+    events:
+      - http:
+          method: GET
+          path: /read/{studentid}
+      - http:
+          method: GET
+          path: /read/{studentid}/{schoolyear}
+      - http:
+          method: GET
+          path: /read/{studentid}/{schoolyear}/{mp}
+  update:
+    handler: lib/js/src/Handler.write
+    events:
+      - http:
+          method: GET
+          path: /update

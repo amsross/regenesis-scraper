@@ -1,0 +1,22 @@
+{
+  "name": "regenesis-scraper",
+  "version": "0.1.0",
+  "sources": {
+    "dir" : "src",
+    "subdirs" : true
+  },
+  "package-specs": {
+    "module": "commonjs",
+    "in-source": false
+  },
+  "suffix": ".js",
+  "bs-dependencies": [
+    "bs-abstract",
+    "bs-effects"
+  ],
+  "warnings": {
+    "error" : "+101"
+  },
+  "namespace": true,
+  "refmt": 3
+}

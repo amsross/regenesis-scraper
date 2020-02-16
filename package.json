@@ -1,0 +1,30 @@
+{
+  "name": "regenesis-scraper",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "bsb -make-world",
+    "local": "AWS_REGION=us-east-1 npx serverless offline start --stage dev -v",
+    "start": "bsb -make-world -w",
+    "clean": "bsb -clean-world"
+  },
+  "keywords": [
+    "BuckleScript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "^2.0.2",
+    "serverless": "^1.63.0",
+    "serverless-offline": "^5.12.1",
+    "serverless-prune-plugin": "^1.4.1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.617.0",
+    "bs-abstract": "^0.18.0",
+    "bs-effects": "^0.10.0",
+    "bs-platform": "^6.2.1",
+    "cheerio": "^1.0.0-rc.3",
+    "got": "^10.5.5",
+    "tough-cookie": "^3.0.1"
+  }
+}
