@@ -2,8 +2,8 @@ module Affect = BsEffects.Affect;
 let const = BsAbstract.Function.(const);
 let (>.) = BsAbstract.Function.Infix.((>.));
 
-let service = "regrade-scraper";
-let stage = "dev";
+[@bs.val] [@bs.scope ("process", "env")] external stage: string = "STAGE";
+[@bs.val] [@bs.scope ("process", "env")] external service: string = "SERVICE";
 let tableName = service ++ "-" ++ stage;
 
 type schoolyear = string;
