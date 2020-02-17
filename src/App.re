@@ -152,7 +152,8 @@ module Database: Database = {
     };
 
   let query:
-    (db, AWS.DynamoDB.query_params) => Affect.affect(AWS.DynamoDB.query_data) =
+    (db, AWS.DynamoDB.query_params('a)) =>
+    Affect.affect(AWS.DynamoDB.query_data) =
     (db, params, error, success) =>
       AWS.DynamoDB.query(db, params, (err, result) =>
         Js.Nullable.isNullable(err)
@@ -175,18 +176,11 @@ module Database: Database = {
         ~select="ALL_ATTRIBUTES",
         ~scanIndexForward=false,
         ~keyConditionExpression="partition_key = :partition_key",
-        ~expressionAttributeValues=
-          Js.Dict.fromList(
-            List.concat([
-              [(":partition_key", string_of_int(studentid))],
-              Belt.Option.mapWithDefault(schoolyear, [], v =>
-                [(":schoolyear", v)]
-              ),
-              Belt.Option.mapWithDefault(mp, [], v =>
-                [(":mp", string_of_int(v))]
-              ),
-            ]),
-          ),
+        ~expressionAttributeValues={
+          ":partition_key": string_of_int(studentid),
+          ":schoolyear": schoolyear,
+          ":mp": mp,
+        },
       );
 
     BsAbstract.Option.Infix.(

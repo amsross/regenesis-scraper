@@ -54,7 +54,7 @@ module DynamoDB = {
   };
 
   [@bs.deriving abstract]
-  type query_params = {
+  type query_params('attribute) = {
     [@bs.as "TableName"]
     tableName: string,
     [@bs.as "Select"] [@bs.optional]
@@ -64,7 +64,7 @@ module DynamoDB = {
     [@bs.as "KeyConditionExpression"] [@bs.optional]
     keyConditionExpression: string,
     [@bs.as "ExpressionAttributeValues"] [@bs.optional]
-    expressionAttributeValues: Js.Dict.t(string),
+    expressionAttributeValues: Js.t('attribute),
     [@bs.as "FilterExpression"] [@bs.optional]
     filterExpression: string,
     [@bs.as "ReturnConsumedCapacity"] [@bs.optional]
@@ -84,15 +84,15 @@ module DynamoDB = {
   };
 
   [@bs.send]
-  external query: (t, query_params, callback(error, query_data)) => unit =
+  external query: (t, query_params('a), callback(error, query_data)) => unit =
     "query";
 
   [@bs.deriving abstract]
-  type put_params('a) = {
+  type put_params('item) = {
     [@bs.as "TableName"]
     tableName: string,
     [@bs.as "Item"]
-    item: 'a,
+    item: 'item,
     [@bs.as "ReturnConsumedCapacity"] [@bs.optional]
     returnConsumedCapacity: string,
   };
@@ -104,7 +104,8 @@ module DynamoDB = {
   };
 
   [@bs.send]
-  external put: (t, put_params('a), callback(error, put_data)) => unit = "put";
+  external put: (t, put_params('a), callback(error, put_data)) => unit =
+    "put";
 
   [@bs.new] [@bs.module "aws-sdk"] [@bs.scope "DynamoDB"]
   external make: unit => t = "DocumentClient";
