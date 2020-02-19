@@ -54,7 +54,7 @@ module DynamoDB = {
   };
 
   [@bs.deriving abstract]
-  type query_params('attribute) = {
+  type query_params('attributes) = {
     [@bs.as "TableName"]
     tableName: string,
     [@bs.as "Select"] [@bs.optional]
@@ -64,7 +64,7 @@ module DynamoDB = {
     [@bs.as "KeyConditionExpression"] [@bs.optional]
     keyConditionExpression: string,
     [@bs.as "ExpressionAttributeValues"] [@bs.optional]
-    expressionAttributeValues: Js.t('attribute),
+    expressionAttributeValues: 'attributes,
     [@bs.as "FilterExpression"] [@bs.optional]
     filterExpression: string,
     [@bs.as "ReturnConsumedCapacity"] [@bs.optional]
@@ -72,11 +72,11 @@ module DynamoDB = {
   };
 
   [@bs.deriving abstract]
-  type query_data = {
+  type query_data('data) = {
     [@bs.as "Count"]
     count: int,
     [@bs.as "Items"]
-    items: array(Js.Dict.t(string)),
+    items: array('data),
     [@bs.as "ScannedCount"]
     scannedCount: int,
     [@bs.as "ConsumedCapacity"] [@bs.optional]
@@ -84,7 +84,8 @@ module DynamoDB = {
   };
 
   [@bs.send]
-  external query: (t, query_params('a), callback(error, query_data)) => unit =
+  external query:
+    (t, query_params('item), callback(error, query_data('data))) => unit =
     "query";
 
   [@bs.deriving abstract]

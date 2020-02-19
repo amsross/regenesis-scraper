@@ -130,7 +130,7 @@ module type Database = {
 
   let fetch:
     (db, option(schoolyear), option(studentid), option(mp)) =>
-    Affect.affect(AWS.DynamoDB.query_data);
+    Affect.affect(AWS.DynamoDB.query_data(Genesis.abs_t));
   let write: (db, Genesis.t) => Affect.affect(Genesis.t);
 
   let fetchOldGrades:
@@ -142,8 +142,8 @@ module Database: Database = {
   let make = AWS.DynamoDB.make;
 
   let put:
-    (db, AWS.DynamoDB.put_params('a)) =>
-    Affect.affect(AWS.DynamoDB.put_params('a)) =
+    (db, AWS.DynamoDB.put_params(Genesis.abs_t)) =>
+    Affect.affect(AWS.DynamoDB.put_params(Genesis.abs_t)) =
     (db, item, error, success) => {
       AWS.DynamoDB.put(db, item, (err, _) =>
         Js.Nullable.isNullable(err)
@@ -152,8 +152,16 @@ module Database: Database = {
     };
 
   let query:
-    (db, AWS.DynamoDB.query_params('a)) =>
-    Affect.affect(AWS.DynamoDB.query_data) =
+    (
+      db,
+      AWS.DynamoDB.query_params({
+        .
+        ":partition_key": string,
+        ":schoolyear": Js.Nullable.t(string),
+        ":mp": Js.Nullable.t(int),
+      })
+    ) =>
+    Affect.affect(AWS.DynamoDB.query_data(Genesis.abs_t)) =
     (db, params, error, success) =>
       AWS.DynamoDB.query(db, params, (err, result) =>
         Js.Nullable.isNullable(err)
@@ -178,8 +186,8 @@ module Database: Database = {
         ~keyConditionExpression="partition_key = :partition_key",
         ~expressionAttributeValues={
           ":partition_key": string_of_int(studentid),
-          ":schoolyear": schoolyear,
-          ":mp": mp,
+          ":schoolyear": Js.Nullable.fromOption(schoolyear),
+          ":mp": Js.Nullable.fromOption(mp),
         },
       );
 
@@ -202,15 +210,9 @@ module Database: Database = {
       <#> AWS.DynamoDB.itemsGet
       <#> Array.fold_right(
             (v, a) => {
-              let course = Js.Dict.get(v, "course");
-              let grade = Js.Dict.get(v, "grade");
-
-              switch (course, grade) {
-              | (Some(course), Some(grade)) =>
-                Js.Dict.set(a, course, float_of_string(grade));
-                a;
-              | _ => a
-              };
+              let {Genesis.course, grade} = Genesis.tFromJs(v);
+              Js.Dict.set(a, course, grade);
+              a;
             },
             _,
             Js.Dict.empty(),
