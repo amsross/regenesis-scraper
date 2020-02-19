@@ -2,7 +2,7 @@
   "name": "regenesis-scraper",
   "version": "0.1.0",
   "scripts": {
-    "bundle": "browserify lib/js/src/Handler.bs.js --standalone app -g uglifyify --node > app.js",
+    "bundle": "browserify lib/js/src/Handler.js --standalone app -g uglifyify --node > app.js",
     "build": "bsb -make-world",
     "local": "AWS_REGION=us-east-1 serverless offline start --stage dev -v",
     "deploy": "serverless deploy",
