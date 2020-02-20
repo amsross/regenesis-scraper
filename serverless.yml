@@ -67,11 +67,13 @@ functions:
   update:
     handler: app.write
     events:
-      - http:
-          method: GET
-          path: /update
-  storeGrades:
-    handler: app.update
-    timeout: 18
-    events:
-      - schedule: rate(2 hours)
+      - schedule:
+          name: update-2200491
+          rate: rate(2 hours)
+          input:
+            studentid: 2200491
+      - schedule:
+          name: update-2501419
+          rate: rate(2 hours)
+          input:
+            studentid: 2501419

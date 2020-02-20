@@ -10,11 +10,6 @@ external genesis_uname: App.Genesis.username = "GENESIS_UNAME";
 external genesis_pword: App.Genesis.password = "GENESIS_PWORD";
 [@bs.val] [@bs.scope ("process", "env")]
 external baseURL: string = "GENESIS_URL";
-[@bs.val] [@bs.scope ("process", "env")]
-external studentids': string = "STUDENTIDS";
-[@bs.scope "JSON"] [@bs.val]
-external parseStudentIDs: string => array(App.studentid) = "parse";
-let studentids = studentids' |> parseStudentIDs |> Array.to_list;
 let tableName = service ++ "-" ++ stage;
 
 let date = Js.Date.make();
@@ -41,7 +36,7 @@ let headers =
     ("Access-Control-Allow-Credentials", Js.Json.boolean(true)),
   ]);
 
-let read: AWS.APIGatewayProxy.handler =
+let read: AWS.APIGatewayProxy.handler(AWS.APIGatewayProxy.Event.t) =
   (event, _) => {
     let params =
       event->AWS.APIGatewayProxy.Event.pathParametersGet->Js.Nullable.toOption;
@@ -91,16 +86,19 @@ let fetchUpdatedGrades = (authenticated, studentid, mp) => {
   );
 };
 
-let fetchGrades = authenticated =>
+let fetchGrades = (authenticated, studentid) =>
   BsAbstract.List.Infix.(
-    [fetchUpdatedGrades(authenticated)] <*> studentids <*> mps |> T.sequence
+    [fetchUpdatedGrades(authenticated, studentid)] <*> mps |> T.sequence
   );
 
-let write: AWS.APIGatewayProxy.handler =
-  (_, _) =>
+let write: AWS.APIGatewayProxy.handler({. "studentid": Js.Nullable.t(int)}) =
+  (event, _) => {
+    let studentid: App.studentid =
+      event##studentid |> Js.Nullable.toOption |> Belt.Option.getExn;
+
     Affect.Infix.(
       App.Genesis.login(instance, genesis_uname, genesis_pword)
-      >>= fetchGrades
+      >>= fetchGrades(_, studentid)
       <#> List.fold_left(List.append, [])
       <#> List.map(App.Database.write(db))
       >>= T.sequence
@@ -126,3 +124,4 @@ let write: AWS.APIGatewayProxy.handler =
               )
             )
        );
+  };

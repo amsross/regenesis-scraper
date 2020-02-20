@@ -35,7 +35,7 @@ module APIGatewayProxy = {
     let make = t;
   };
 
-  type handler = (Event.t, context) => Js.Promise.t(Result.t);
+  type handler('event) = ('event, context) => Js.Promise.t(Result.t);
 };
 
 module DynamoDB = {
