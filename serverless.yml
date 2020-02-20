@@ -66,6 +66,7 @@ functions:
           path: /read/{studentid}/{schoolyear}/{mp}
   update:
     handler: app.write
+    timeout: 16
     events:
       - schedule:
           name: update-2200491
