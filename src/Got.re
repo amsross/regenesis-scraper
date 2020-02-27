@@ -36,7 +36,7 @@ let create = (prefixUrl, headers) =>
 
 let get1' = (i, u, p) => get0'(i, u, {"searchParams": p});
 
-let get = (instance, url, ~params=?) =>
+let get = (instance, url, ~params=?, _) =>
   Affect.Infix.(
     switch (params) {
     | Some(p) => pure() >>= (_ => get1'(instance, url, p) |> from_promise)
