@@ -17,7 +17,7 @@
   "devDependencies": {
     "aws-sdk": "^2.617.0",
     "browserify": "^16.5.0",
-    "bs-abstract": "^0.18.0",
+    "bs-abstract": "^1.0.0",
     "bs-effects": "^0.10.0",
     "bs-platform": "^6.2.1",
     "cheerio": "^1.0.0-rc.3",
