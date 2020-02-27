@@ -14,7 +14,6 @@ module type Genesis = {
   type username;
   type password;
   type authenticated;
-  [@bs.deriving {jsConverter: newType}]
   type t = {
     partition_key: string,
     sort_key: string,
@@ -39,7 +38,6 @@ module Genesis: Genesis = {
   type username = string;
   type password = string;
   type authenticated = unit;
-  [@bs.deriving {jsConverter: newType}]
   type t = {
     partition_key: string,
     sort_key: string,
@@ -130,7 +128,7 @@ module type Database = {
 
   let fetch:
     (db, option(schoolyear), option(studentid), option(mp)) =>
-    Affect.affect(AWS.DynamoDB.query_data(Genesis.abs_t));
+    Affect.affect(AWS.DynamoDB.query_data(Genesis.t));
   let write: (db, Genesis.t) => Affect.affect(Genesis.t);
 
   let fetchOldGrades:
@@ -142,8 +140,8 @@ module Database: Database = {
   let make = AWS.DynamoDB.make;
 
   let put:
-    (db, AWS.DynamoDB.put_params(Genesis.abs_t)) =>
-    Affect.affect(AWS.DynamoDB.put_params(Genesis.abs_t)) =
+    (db, AWS.DynamoDB.put_params(Genesis.t)) =>
+    Affect.affect(AWS.DynamoDB.put_params(Genesis.t)) =
     (db, item, error, success) => {
       AWS.DynamoDB.put(db, item, (err, _) =>
         Js.Nullable.isNullable(err)
@@ -161,7 +159,7 @@ module Database: Database = {
         ":mp": Js.Nullable.t(int),
       })
     ) =>
-    Affect.affect(AWS.DynamoDB.query_data(Genesis.abs_t)) =
+    Affect.affect(AWS.DynamoDB.query_data(Genesis.t)) =
     (db, params, error, success) =>
       AWS.DynamoDB.query(db, params, (err, result) =>
         Js.Nullable.isNullable(err)
@@ -197,11 +195,10 @@ module Database: Database = {
     |> query(db);
   };
 
-  let write = (db, grade) => {
-    let params =
-      AWS.DynamoDB.put_params(~tableName, ~item=Genesis.tToJs(grade), ());
+  let write = (db, item) => {
+    let params = AWS.DynamoDB.put_params(~tableName, ~item, ());
 
-    Affect.Infix.(put(db, params) <#> const(grade));
+    Affect.Infix.(put(db, params) <#> const(item));
   };
 
   let fetchOldGrades = (db, schoolyear, studentid, mp) =>
@@ -209,8 +206,7 @@ module Database: Database = {
       fetch(db, Some(schoolyear), Some(studentid), Some(mp))
       <#> AWS.DynamoDB.itemsGet
       <#> Array.fold_right(
-            (v, a) => {
-              let {Genesis.course, grade} = Genesis.tFromJs(v);
+            (Genesis.{course, grade}, a) => {
               Js.Dict.set(a, course, grade);
               a;
             },

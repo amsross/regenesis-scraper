@@ -103,7 +103,6 @@ let write: AWS.APIGatewayProxy.handler({. "studentid": Js.Nullable.t(int)}) =
       <#> List.map(App.Database.write(db))
       >>= T.sequence
       <#> Array.of_list
-      <#> Array.map(App.Genesis.tToJs)
     )
     |> Js.Promise.(
          Affect.to_promise
