@@ -6,7 +6,7 @@ type selector = string => dom;
 let trim: string => string = Js.String.trim;
 let toNumber: string => option(float) =
   str =>
-    try (
+    try(
       (str |> trim |> Js.String.replaceByRe([%re "/[^\\d.]/g"], ""))
       ->float_of_string
       ->Some
