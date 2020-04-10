@@ -7,7 +7,7 @@ let trim: string => string = Js.String.trim;
 let toNumber: string => option(float) =
   str =>
     try(
-      (str |> trim |> Js.String.replaceByRe([%re "/[^\\d.]/g"], ""))
+      (str |> trim |> Js.String.replaceByRe([%re "/(MP[0-9]|[^\\d.])/g"], ""))
       ->float_of_string
       ->Some
     ) {
