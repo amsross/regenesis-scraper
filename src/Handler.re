@@ -15,7 +15,7 @@ let tableName = service ++ "-" ++ stage;
 let date = Js.Date.make();
 let year = date |> Js.Date.getUTCFullYear |> int_of_float;
 let schoolyear =
-  date |> Js.Date.getUTCMonth |> (+.)(1.0) |> (<)(8.0)
+  date |> Js.Date.getUTCMonth |> (+.)(1.0) |> (<)(7.0)
     ? string_of_int(year) ++ "-" ++ string_of_int(year + 1)
     : string_of_int(year - 1) ++ "-" ++ string_of_int(year);
 let mps = [1, 2, 3, 4];
