@@ -13,14 +13,14 @@ provider:
     GENESIS_PWORD: ${env:GENESIS_PWORD}
     SERVICE: ${self:service}
     STAGE: ${self:provider.stage}
-    REGION: ${opt:region, self:provider.region}
+    REGION: ${aws:region}
   iamRoleStatements:
     -  Effect: "Allow"
        Action:
          - "dynamodb:Query"
          - "dynamodb:GetItem"
          - "dynamodb:PutItem"
-       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:service}-${self:provider.stage}"
+       Resource: "arn:aws:dynamodb:${aws:region}:*:table/${self:service}-${self:provider.stage}"
 
 resources:
   Resources:
