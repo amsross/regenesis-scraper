@@ -21,7 +21,7 @@
     "bs-effects": "^0.10.0",
     "bs-platform": "^7.3.2",
     "cheerio": "^1.0.0-rc.10",
-    "got": "^10.7.0",
+    "got": "^11.8.5",
     "serverless": "^3.0.0",
     "serverless-offline": "^8.3.1",
     "serverless-prune-plugin": "^2.0.1",
