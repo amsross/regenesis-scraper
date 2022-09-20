@@ -1,5 +1,4 @@
 module Option = Belt.Option
-module Affect = BsEffects.Affect
 
 @val @scope(("process", "env")) external stage: string = "STAGE"
 @val @scope(("process", "env")) external service: string = "SERVICE"
@@ -26,8 +25,8 @@ module type Genesis = {
 
   let gradeHasChanged: (Js.Dict.t<float>, t) => bool
 
-  let login: (Got.instance, username, password) => Affect.affect<authenticated>
-  let fetch: (authenticated, Got.instance, schoolyear, studentid, mp) => Affect.affect<list<t>>
+  let login: (Got.instance, username, password) => Future.t<authenticated>
+  let fetch: (authenticated, Got.instance, schoolyear, studentid, mp) => Future.t<list<t>>
 }
 
 module Genesis: Genesis = {
@@ -48,10 +47,10 @@ module Genesis: Genesis = {
 
   let login = (instance, username, password) =>
     Got.get(instance, "parents", ())
-    |> Affect.flat_map(_, _ =>
+    |> Future.flat_map(_, _ =>
       Got.post(instance, "j_security_check", {"j_username": username, "j_password": password})
     )
-    |> Affect.map(_ => ())
+    |> Future.map(_ => ())
 
   let makeSortKey = (schoolyear, mp, course, unixstamp) =>
     Js.String.replaceByRe(
@@ -93,7 +92,7 @@ module Genesis: Genesis = {
       "mpToView": "MP" ++ string_of_int(mp),
     }
 
-    Got.get(instance, "parents", ~params, ()) |> Affect.map(data => {
+    Got.get(instance, "parents", ~params, ()) |> Future.map(data => {
       let entries =
         data["body"]->Cheerio.load->Cheerio.parse->Array.to_list |> List.map(Cheerio.entryFromJs)
 
@@ -111,10 +110,10 @@ module type Database = {
     option<schoolyear>,
     option<studentid>,
     option<mp>,
-  ) => Affect.affect<AWS.DynamoDB.query_data<Genesis.t>>
-  let write: (db, Genesis.t) => Affect.affect<Genesis.t>
+  ) => Future.t<AWS.DynamoDB.query_data<Genesis.t>>
+  let write: (db, Genesis.t) => Future.t<Genesis.t>
 
-  let fetchOldGrades: (db, schoolyear, studentid, mp) => Affect.affect<Js.Dict.t<float>>
+  let fetchOldGrades: (db, schoolyear, studentid, mp) => Future.t<Js.Dict.t<float>>
 }
 
 module Database: Database = {
@@ -124,9 +123,12 @@ module Database: Database = {
   let put: (
     db,
     AWS.DynamoDB.put_params<Genesis.t>,
-  ) => Affect.affect<AWS.DynamoDB.put_params<Genesis.t>> = (db, item, error, success) =>
+  ) => Future.t<AWS.DynamoDB.put_params<Genesis.t>> = (db, item, error, success) =>
     AWS.DynamoDB.put(db, item, (err, _) =>
-      Js.Nullable.isNullable(err) ? success(item) : error(Js.Nullable.toOption(err))
+      switch Js.Nullable.toOption(err) {
+      | None => success(item)
+      | Some(exn) => error(Future.JsError(exn))
+      }
     )
 
   let query: (
@@ -136,9 +138,12 @@ module Database: Database = {
       ":schoolyear": Js.Nullable.t<string>,
       ":mp": Js.Nullable.t<int>,
     }>,
-  ) => Affect.affect<AWS.DynamoDB.query_data<Genesis.t>> = (db, params, error, success) =>
+  ) => Future.t<AWS.DynamoDB.query_data<Genesis.t>> = (db, params, error, success) =>
     AWS.DynamoDB.query(db, params, (err, result) =>
-      Js.Nullable.isNullable(err) ? success(result) : error(Js.Nullable.toOption(err))
+      switch Js.Nullable.toOption(err) {
+      | None => success(result)
+      | Some(exn) => error(Future.JsError(exn))
+      }
     )
 
   let fetch = (db, schoolyear, studentid, mp) => {
@@ -170,11 +175,11 @@ module Database: Database = {
   let write = (db, item) => {
     let params = AWS.DynamoDB.put_params(~tableName, ~item, ())
 
-    put(db, params) |> Affect.map(_ => item)
+    put(db, params) |> Future.map(_ => item)
   }
 
   let fetchOldGrades = (db, schoolyear, studentid, mp) =>
-    fetch(db, Some(schoolyear), Some(studentid), Some(mp)) |> Affect.map(result => {
+    fetch(db, Some(schoolyear), Some(studentid), Some(mp)) |> Future.map(result => {
       let items = result |> AWS.DynamoDB.itemsGet
 
       Array.fold_right(({Genesis.course: course, grade}, dict) => {

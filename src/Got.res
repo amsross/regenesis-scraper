@@ -1,5 +1,3 @@
-module Affect = BsEffects.Affect
-
 type instance
 type cookie
 type response<'header> = {
@@ -34,9 +32,9 @@ let get1' = (i, u, p) => get0'(i, u, {"searchParams": p})
 
 let get = (instance, url, ~params=?, _) =>
   switch params {
-  | Some(p) => Affect.pure()->Affect.flat_map(_ => get1'(instance, url, p) |> Affect.from_promise)
-  | None => Affect.pure()->Affect.flat_map(_ => get'(instance, url) |> Affect.from_promise)
+  | Some(p) => Future.pure()->Future.flat_map(_ => get1'(instance, url, p)->Future.from_promise)
+  | None => Future.pure()->Future.flat_map(_ => get'(instance, url)->Future.from_promise)
   }
 
 let post = (instance, url, form) =>
-  Affect.pure()->Affect.flat_map(_ => post'(instance, url, {"form": form}) |> Affect.from_promise)
+  Future.pure()->Future.flat_map(_ => post'(instance, url, {"form": form})->Future.from_promise)

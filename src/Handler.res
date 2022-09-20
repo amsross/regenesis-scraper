@@ -2,8 +2,12 @@ module Database = App.Database
 module Genesis = App.Genesis
 module Option = Belt.Option
 module Promise = Js.Promise
-module Affect = BsEffects.Affect
-module T = BsAbstract.List.Traversable(Affect.Applicative)
+
+module ListFuture = {
+  let sequence = xs => List.fold_right((acc, x) => {
+      x |> Future.flat_map(_, x => acc |> Future.map(acc => List.append(list{acc}, x)))
+    }, xs, Future.pure(list{}))
+}
 
 @val @scope(("process", "env")) external stage: string = "STAGE"
 @val @scope(("process", "env")) external service: string = "SERVICE"
@@ -38,41 +42,69 @@ let headers = Js.Dict.fromList(list{
 })
 
 let read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (event, _) => {
-  let params = event->AWS.APIGatewayProxy.Event.pathParametersGet->Js.Nullable.toOption
-  let studentid: option<App.studentid> =
-    params->Option.flatMap(params => params->Js.Dict.get("studentid"))->Option.map(int_of_string)
-  let schoolyear: option<App.schoolyear> =
-    params->Option.flatMap(params => params->Js.Dict.get("schoolyear"))
-  let mp: option<App.mp> =
-    params->Option.flatMap(params => params->Js.Dict.get("mp"))->Option.map(int_of_string)
+  try {
+    let params = event->AWS.APIGatewayProxy.Event.pathParametersGet->Js.Nullable.toOption
+    let studentid: option<App.studentid> =
+      params->Option.flatMap(params => params->Js.Dict.get("studentid"))->Option.map(int_of_string)
+    let schoolyear: option<App.schoolyear> =
+      params->Option.flatMap(params => params->Js.Dict.get("schoolyear"))
+    let mp: option<App.mp> =
+      params->Option.flatMap(params => params->Js.Dict.get("mp"))->Option.map(int_of_string)
 
-  Database.fetch(db, schoolyear, studentid, mp)
-  |> Affect.map(AWS.DynamoDB.itemsGet)
-  |> Affect.to_promise
-  |> Promise.then_(results => results->Js.Json.stringifyAny->Promise.resolve)
-  |> Promise.then_(x =>
-    switch x {
-    | Some(body) => Promise.resolve(body)
-    | None => Promise.reject(Js.Exn.raiseError("could not stringify payload"))
-    }
-  )
-  |> Promise.then_(body =>
-    Promise.resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200))
-  )
+    Database.fetch(db, schoolyear, studentid, mp)
+    |> Future.map(results => {
+      let items = AWS.DynamoDB.itemsGet(results)
+
+      items->Js.Json.stringifyAny
+    })
+    |> Future.to_promise
+    |> Promise.then_(body =>
+      switch body {
+      | Some(body) =>
+        Promise.resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200))
+      | None =>
+        Promise.resolve(
+          AWS.APIGatewayProxy.Result.make(
+            ~body="could not stringify payload",
+            ~headers,
+            ~statusCode=500,
+          ),
+        )
+      }
+    )
+    |> Promise.catch(err => {
+      Js.Console.error(err)
+
+      Promise.resolve(
+        AWS.APIGatewayProxy.Result.make(~body="unknown error", ~headers, ~statusCode=500),
+      )
+    })
+  } catch {
+  | exn =>
+    Js.Console.error(exn)
+
+    Promise.resolve(
+      AWS.APIGatewayProxy.Result.make(
+        ~body="error occured during write",
+        ~headers,
+        ~statusCode=500,
+      ),
+    )
+  }
 }
 
 let fetchUpdatedGrades = (authenticated, studentid, mp) => {
   let oldGrades = Database.fetchOldGrades(db, schoolyear, studentid, mp)
   let newGrades = Genesis.fetch(authenticated, instance, schoolyear, studentid, mp)
 
-  Affect.apply(
-    oldGrades |> Affect.map(oldGrades => List.filter(Genesis.gradeHasChanged(oldGrades))),
+  Future.apply(
+    oldGrades |> Future.map(oldGrades => List.filter(Genesis.gradeHasChanged(oldGrades))),
     newGrades,
   )
 }
 
 let fetchGrades = (authenticated, studentid) =>
-  mps |> List.map(fetchUpdatedGrades(authenticated, studentid)) |> T.sequence
+  mps |> List.map(fetchUpdatedGrades(authenticated, studentid)) |> ListFuture.sequence
 
 let write: AWS.APIGatewayProxy.handler<{
   "studentid": Js.Nullable.t<int>,
@@ -80,25 +112,28 @@ let write: AWS.APIGatewayProxy.handler<{
   try {
     let studentid: App.studentid = event["studentid"] |> Js.Nullable.toOption |> Option.getExn
 
+    let writeGrades = grades =>
+      grades |> List.fold_left(List.append, list{}) |> List.map(grade => Database.write(db, grade))
+
     Genesis.login(instance, genesis_uname, genesis_pword)
-    |> Affect.flat_map(_, fetchGrades(_, studentid))
-    |> Affect.flat_map(_, grades =>
-      grades
-      |> List.fold_left(List.append, list{})
-      |> List.map(grade => Database.write(db, grade))
-      |> T.sequence
-    )
-    |> Affect.map(Array.of_list)
-    |> Affect.to_promise
-    |> Promise.then_(results => results->Js.Json.stringifyAny->Promise.resolve)
+    |> Future.flat_map(_, fetchGrades(_, studentid))
+    |> Future.map(writeGrades)
+    |> Future.flat_map(_, ListFuture.sequence)
+    |> Future.map(results => results->Array.of_list->Js.Json.stringifyAny)
+    |> Future.to_promise
     |> Promise.then_(x =>
       switch x {
-      | Some(body) => Promise.resolve(body)
-      | None => Promise.reject(Js.Exn.raiseError("could not stringify payload"))
+      | Some(body) =>
+        Promise.resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200))
+      | None =>
+        Promise.resolve(
+          AWS.APIGatewayProxy.Result.make(
+            ~body="could not stringify payload",
+            ~headers,
+            ~statusCode=500,
+          ),
+        )
       }
-    )
-    |> Promise.then_(body =>
-      Promise.resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200))
     )
     |> Promise.catch(err => {
       Js.Console.error(err)

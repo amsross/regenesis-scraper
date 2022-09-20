@@ -7,5 +7,5 @@ type response<'header> = {
 }
 
 let create: (string, 'a) => instance
-let get: (instance, string, ~params: 'a=?, unit) => BsEffects.Affect.affect<response<'b>>
-let post: (instance, string, 'a) => BsEffects.Affect.affect<response<'b>>
+let get: (instance, string, ~params: 'a=?, unit) => Future.t<response<'b>>
+let post: (instance, string, 'a) => Future.t<response<'b>>
