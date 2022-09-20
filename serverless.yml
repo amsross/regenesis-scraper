@@ -52,7 +52,7 @@ custom:
 
 functions:
   read:
-    handler: app.read
+    handler: lib/js/src/Handler.read
     events:
       - http:
           method: GET
@@ -64,7 +64,7 @@ functions:
           method: GET
           path: /read/{studentid}/{schoolyear}/{mp}
   update:
-    handler: app.write
+    handler: lib/js/src/Handler.write
     timeout: 16
     events:
       - schedule:

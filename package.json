@@ -2,7 +2,6 @@
   "name": "regenesis-scraper",
   "version": "0.1.0",
   "scripts": {
-    "bundle": "browserify lib/js/src/Handler.js --standalone app -g uglifyify --node > app.js",
     "build": "bsb -make-world",
     "local": "AWS_REGION=us-east-1 serverless offline start --stage dev --verbose",
     "deploy": "serverless deploy",
@@ -24,10 +23,8 @@
     "tough-cookie": "^3.0.1"
   },
   "devDependencies": {
-    "browserify": "^16.5.2",
     "serverless": "^3.0.0",
-    "serverless-offline": "^8.3.1",
-    "serverless-prune-plugin": "^2.0.1",
-    "uglifyify": "^5.0.2"
+    "serverless-offline": "^8.8.1",
+    "serverless-prune-plugin": "^2.0.1"
   }
 }
