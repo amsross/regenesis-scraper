@@ -69,6 +69,6 @@ functions:
     events:
       - schedule:
           name: update-2501419
-          rate: rate(2 hours)
+          rate: rate(6 hours)
           input:
             studentid: 2501419
