@@ -2,8 +2,7 @@
 .bsb.lock
 .merlin
 .serverless
-/lib/bs/
-/lib/js/
+/lib
 /node_modules/
 app.js
 npm-debug.log
