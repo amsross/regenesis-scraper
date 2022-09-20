@@ -56,7 +56,7 @@ module Genesis: Genesis = {
       >>= const(
             Got.post(
               instance,
-              "/j_security_check",
+              "j_security_check",
               {"j_username": username, "j_password": password},
             ),
           )
@@ -114,7 +114,7 @@ module Genesis: Genesis = {
     };
 
     Affect.Infix.(
-      Got.get(instance, "/parents", ~params, ())
+      Got.get(instance, "parents", ~params, ())
       <#> (data => data##body)
       <#> Cheerio.(load >. parse >. Array.to_list >. List.map(entryFromJs))
       <#> cleanGrades(schoolyear, studentid, mp)
