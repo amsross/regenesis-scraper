@@ -2,11 +2,12 @@
   "name": "regenesis-scraper",
   "version": "0.1.0",
   "scripts": {
-    "build": "bsb -make-world",
+    "prebuild": "npm run clean",
+    "build": "rescript build -with-deps",
     "local": "AWS_REGION=us-east-1 serverless offline start --stage dev --verbose",
     "deploy": "serverless deploy",
-    "start": "bsb -make-world -w",
-    "clean": "bsb -clean-world"
+    "start": "rescript build -w",
+    "clean": "rescript clean"
   },
   "keywords": [
     "BuckleScript"
@@ -17,12 +18,12 @@
     "aws-sdk": "^2.1064.0",
     "bs-abstract": "^1.0.0",
     "bs-effects": "^0.10.0",
-    "bs-platform": "^7.3.2",
     "cheerio": "^1.0.0-rc.10",
     "got": "^11.8.5",
     "tough-cookie": "^3.0.1"
   },
   "devDependencies": {
+    "rescript": "^9.1.4",
     "serverless": "^3.0.0",
     "serverless-offline": "^8.8.1",
     "serverless-prune-plugin": "^2.0.1"
