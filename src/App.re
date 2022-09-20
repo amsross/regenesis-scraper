@@ -1,6 +1,5 @@
+module Option = Belt.Option;
 module Affect = BsEffects.Affect;
-let const = BsAbstract.Function.(const);
-let (>.) = BsAbstract.Function.Infix.((>.));
 
 [@bs.val] [@bs.scope ("process", "env")] external stage: string = "STAGE";
 [@bs.val] [@bs.scope ("process", "env")] external service: string = "SERVICE";
@@ -51,17 +50,15 @@ module Genesis: Genesis = {
   let unixstamp = Js.Date.now();
 
   let login = (instance, username, password) =>
-    Affect.Infix.(
-      Got.get(instance, "parents", ())
-      >>= const(
-            Got.post(
-              instance,
-              "j_security_check",
-              {"j_username": username, "j_password": password},
-            ),
-          )
-      >>= const(Affect.pure())
-    );
+    Got.get(instance, "parents", ())
+    ->Affect.flat_map(_ =>
+        Got.post(
+          instance,
+          "j_security_check",
+          {"j_username": username, "j_password": password},
+        )
+      )
+    ->Affect.flat_map(_ => Affect.pure());
 
   let makeSortKey = (schoolyear, mp, course, unixstamp) =>
     Js.String.replaceByRe(
@@ -86,8 +83,8 @@ module Genesis: Genesis = {
 
   let gradeHasChanged = (oldGrades, {course, grade}) =>
     Js.Dict.get(oldGrades, course)
-    ->Belt.Option.map(o => o != grade)
-    ->Belt.Option.getWithDefault(true);
+    ->Option.map(o => o != grade)
+    ->Option.getWithDefault(true);
 
   let cleanGrades = (schoolyear, studentid, mp) =>
     List.fold_left(
@@ -113,12 +110,14 @@ module Genesis: Genesis = {
       "mpToView": "MP" ++ string_of_int(mp),
     };
 
-    Affect.Infix.(
-      Got.get(instance, "parents", ~params, ())
-      <#> (data => data##body)
-      <#> Cheerio.(load >. parse >. Array.to_list >. List.map(entryFromJs))
-      <#> cleanGrades(schoolyear, studentid, mp)
-    );
+    Got.get(instance, "parents", ~params, ())
+    |> Affect.map(data => {
+         let entries =
+           data##body->Cheerio.load->Cheerio.parse->Array.to_list
+           |> List.map(Cheerio.entryFromJs);
+
+         cleanGrades(schoolyear, studentid, mp, entries);
+       });
   };
 };
 
@@ -167,7 +166,7 @@ module Database: Database = {
       );
 
   let fetch = (db, schoolyear, studentid, mp) => {
-    let studentid = Belt.Option.getExn(studentid);
+    let studentid = Option.getExn(studentid);
     let filterExpression =
       switch (schoolyear, mp) {
       | (Some(_), Some(_)) => Some("schoolyear = :schoolyear and mp = :mp")
@@ -189,29 +188,31 @@ module Database: Database = {
         },
       );
 
-    BsAbstract.Option.Infix.(
-      params() |? (filterExpression <#> params(~filterExpression=_, ()))
-    )
+    params()
+    |> Option.getWithDefault(
+         filterExpression->Option.map(params(~filterExpression=_, ())),
+       )
     |> query(db);
   };
 
   let write = (db, item) => {
     let params = AWS.DynamoDB.put_params(~tableName, ~item, ());
 
-    Affect.Infix.(put(db, params) <#> const(item));
+    put(db, params) |> Affect.map(_ => item);
   };
 
   let fetchOldGrades = (db, schoolyear, studentid, mp) =>
-    Affect.Infix.(
-      fetch(db, Some(schoolyear), Some(studentid), Some(mp))
-      <#> AWS.DynamoDB.itemsGet
-      <#> Array.fold_right(
-            (Genesis.{course, grade}, a) => {
-              Js.Dict.set(a, course, grade);
-              a;
-            },
-            _,
-            Js.Dict.empty(),
-          )
-    );
+    fetch(db, Some(schoolyear), Some(studentid), Some(mp))
+    |> Affect.map(result => {
+         let items = result |> AWS.DynamoDB.itemsGet;
+
+         Array.fold_right(
+           (Genesis.{course, grade}, dict) => {
+             Js.Dict.set(dict, course, grade);
+             dict;
+           },
+           items,
+           Js.Dict.empty(),
+         );
+       });
 };

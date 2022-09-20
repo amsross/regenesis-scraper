@@ -37,12 +37,11 @@ let create = (prefixUrl, headers) =>
 let get1' = (i, u, p) => get0'(i, u, {"searchParams": p});
 
 let get = (instance, url, ~params=?, _) =>
-  Affect.Infix.(
-    switch (params) {
-    | Some(p) => pure() >>= (_ => get1'(instance, url, p) |> from_promise)
-    | None => pure() >>= (_ => get'(instance, url) |> from_promise)
-    }
-  );
+  switch (params) {
+  | Some(p) =>
+    pure()->Affect.flat_map(_ => get1'(instance, url, p) |> from_promise)
+  | None => pure()->Affect.flat_map(_ => get'(instance, url) |> from_promise)
+  };
 
 let post = (instance, url, form) =>
   Affect.Infix.(

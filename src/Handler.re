@@ -1,13 +1,16 @@
+module Database = App.Database;
+module Genesis = App.Genesis;
+module Option = Belt.Option;
+module Promise = Js.Promise;
 module Affect = BsEffects.Affect;
 module T = BsAbstract.List.Traversable(Affect.Applicative);
-let ((<.), (>.)) = BsAbstract.Function.Infix.((<.), (>.));
 
 [@bs.val] [@bs.scope ("process", "env")] external stage: string = "STAGE";
 [@bs.val] [@bs.scope ("process", "env")] external service: string = "SERVICE";
 [@bs.val] [@bs.scope ("process", "env")]
-external genesis_uname: App.Genesis.username = "GENESIS_UNAME";
+external genesis_uname: Genesis.username = "GENESIS_UNAME";
 [@bs.val] [@bs.scope ("process", "env")]
-external genesis_pword: App.Genesis.password = "GENESIS_PWORD";
+external genesis_pword: Genesis.password = "GENESIS_PWORD";
 [@bs.val] [@bs.scope ("process", "env")]
 external baseURL: string = "GENESIS_URL";
 let tableName = service ++ "-" ++ stage;
@@ -15,11 +18,11 @@ let tableName = service ++ "-" ++ stage;
 let date = Js.Date.make();
 let year = date |> Js.Date.getUTCFullYear |> int_of_float;
 let schoolyear =
-  date |> Js.Date.getUTCMonth |> (+.)(1.0) |> (<)(7.0)
+  Js.Date.getUTCMonth(date) +. 1.0 > 7.0
     ? string_of_int(year) ++ "-" ++ string_of_int(year + 1)
     : string_of_int(year - 1) ++ "-" ++ string_of_int(year);
 let mps = [1, 2, 3, 4];
-let db = App.Database.make();
+let db = Database.make();
 
 let instance =
   Got.create(
@@ -41,86 +44,103 @@ let read: AWS.APIGatewayProxy.handler(AWS.APIGatewayProxy.Event.t) =
     let params =
       event->AWS.APIGatewayProxy.Event.pathParametersGet->Js.Nullable.toOption;
     let studentid: option(App.studentid) =
-      BsAbstract.Option.Infix.(
-        params >>= Js.Dict.get(_, "studentid") <#> int_of_string
-      );
+      params
+      ->Option.flatMap(params => params->Js.Dict.get("studentid"))
+      ->Option.map(int_of_string);
     let schoolyear: option(App.schoolyear) =
-      BsAbstract.Option.Infix.(params >>= Js.Dict.get(_, "schoolyear"));
+      params->Option.flatMap(params => params->Js.Dict.get("schoolyear"));
     let mp: option(App.mp) =
-      BsAbstract.Option.Infix.(
-        params >>= Js.Dict.get(_, "mp") <#> int_of_string
-      );
+      params
+      ->Option.flatMap(params => params->Js.Dict.get("mp"))
+      ->Option.map(int_of_string);
 
-    Affect.Infix.(
-      App.Database.fetch(db, schoolyear, studentid, mp)
-      <#> AWS.DynamoDB.itemsGet
-    )
-    |> Js.Promise.(
-         Affect.to_promise
-         >. then_(Js.Json.stringifyAny >. resolve)
-         >. then_(
-              fun
-              | Some(body) => resolve(body)
-              | None =>
-                reject(Js.Exn.raiseError("could not stringify payload")),
-            )
-         >. then_(body =>
-              resolve(
-                AWS.APIGatewayProxy.Result.make(
-                  ~body,
-                  ~headers,
-                  ~statusCode=200,
-                ),
-              )
-            )
+    Database.fetch(db, schoolyear, studentid, mp)
+    |> Affect.map(AWS.DynamoDB.itemsGet)
+    |> Affect.to_promise
+    |> Promise.then_(results =>
+         results->Js.Json.stringifyAny->Promise.resolve
+       )
+    |> Promise.then_(
+         fun
+         | Some(body) => Promise.resolve(body)
+         | None =>
+           Promise.reject(Js.Exn.raiseError("could not stringify payload")),
+       )
+    |> Promise.then_(body =>
+         Promise.resolve(
+           AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200),
+         )
        );
   };
 
 let fetchUpdatedGrades = (authenticated, studentid, mp) => {
-  let oldGrades = App.Database.fetchOldGrades(db, schoolyear, studentid, mp);
+  let oldGrades = Database.fetchOldGrades(db, schoolyear, studentid, mp);
   let newGrades =
-    App.Genesis.fetch(authenticated, instance, schoolyear, studentid, mp);
+    Genesis.fetch(authenticated, instance, schoolyear, studentid, mp);
 
-  Affect.Infix.(
-    oldGrades <#> (List.filter <. App.Genesis.gradeHasChanged) <*> newGrades
+  Affect.apply(
+    oldGrades
+    |> Affect.map(oldGrades =>
+         List.filter(Genesis.gradeHasChanged(oldGrades))
+       ),
+    newGrades,
   );
 };
 
 let fetchGrades = (authenticated, studentid) =>
-  BsAbstract.List.Infix.(
-    [fetchUpdatedGrades(authenticated, studentid)] <*> mps |> T.sequence
-  );
+  mps |> List.map(fetchUpdatedGrades(authenticated, studentid)) |> T.sequence;
 
 let write: AWS.APIGatewayProxy.handler({. "studentid": Js.Nullable.t(int)}) =
-  (event, _) => {
-    let studentid: App.studentid =
-      event##studentid |> Js.Nullable.toOption |> Belt.Option.getExn;
+  (event, _) =>
+    try({
+      let studentid: App.studentid =
+        event##studentid |> Js.Nullable.toOption |> Option.getExn;
 
-    Affect.Infix.(
-      App.Genesis.login(instance, genesis_uname, genesis_pword)
-      >>= fetchGrades(_, studentid)
-      <#> List.fold_left(List.append, [])
-      <#> List.map(App.Database.write(db))
-      >>= T.sequence
-      <#> Array.of_list
-    )
-    |> Js.Promise.(
-         Affect.to_promise
-         >. then_(Js.Json.stringifyAny >. resolve)
-         >. then_(
-              fun
-              | Some(body) => resolve(body)
-              | None =>
-                reject(Js.Exn.raiseError("could not stringify payload")),
-            )
-         >. then_(body =>
-              resolve(
-                AWS.APIGatewayProxy.Result.make(
-                  ~body,
-                  ~headers,
-                  ~statusCode=200,
-                ),
-              )
-            )
-       );
-  };
+      Genesis.login(instance, genesis_uname, genesis_pword)
+      |> Affect.flat_map(_, fetchGrades(_, studentid))
+      |> Affect.map(List.fold_left(List.append, []))
+      |> Affect.map(List.map(Database.write(db)))
+      |> Affect.flat_map(_, T.sequence)
+      |> Affect.map(Array.of_list)
+      |> Affect.to_promise
+      |> Promise.then_(results =>
+           results->Js.Json.stringifyAny->Promise.resolve
+         )
+      |> Promise.then_(
+           fun
+           | Some(body) => Promise.resolve(body)
+           | None =>
+             Promise.reject(
+               Js.Exn.raiseError("could not stringify payload"),
+             ),
+         )
+      |> Promise.then_(body =>
+           Promise.resolve(
+             AWS.APIGatewayProxy.Result.make(
+               ~body,
+               ~headers,
+               ~statusCode=200,
+             ),
+           )
+         )
+      |> Promise.catch(err =>
+           Promise.resolve(
+             AWS.APIGatewayProxy.Result.make(
+               ~body="unknown error",
+               ~headers,
+               ~statusCode=500,
+             ),
+           )
+         );
+    }) {
+    | exn =>
+      Js.Console.log(exn);
+
+      Promise.resolve(
+        AWS.APIGatewayProxy.Result.make(
+          ~body="error occured during wirte",
+          ~headers,
+          ~statusCode=500,
+        ),
+      );
+    };
