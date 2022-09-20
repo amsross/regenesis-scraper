@@ -26,11 +26,8 @@ module type Genesis = {
 
   let gradeHasChanged: (Js.Dict.t(float), t) => bool;
 
-  let login:
-    (Got.instance, username, password) => Affect.affect(authenticated);
-  let fetch:
-    (authenticated, Got.instance, schoolyear, studentid, mp) =>
-    Affect.affect(list(t));
+  let login: (Got.instance, username, password) => Affect.affect(authenticated);
+  let fetch: (authenticated, Got.instance, schoolyear, studentid, mp) => Affect.affect(list(t));
 };
 
 module Genesis: Genesis = {
@@ -51,23 +48,16 @@ module Genesis: Genesis = {
 
   let login = (instance, username, password) =>
     Got.get(instance, "parents", ())
-    ->Affect.flat_map(_ =>
-        Got.post(
-          instance,
-          "j_security_check",
-          {"j_username": username, "j_password": password},
-        )
-      )
-    ->Affect.flat_map(_ => Affect.pure());
+    |> Affect.flat_map(_, _ =>
+         Got.post(instance, "j_security_check", {"j_username": username, "j_password": password})
+       )
+    |> Affect.map(_ => ());
 
   let makeSortKey = (schoolyear, mp, course, unixstamp) =>
     Js.String.replaceByRe(
       [%bs.re "/\\W/g"],
       "",
-      schoolyear
-      ++ string_of_int(mp)
-      ++ course
-      ++ Js.Float.toString(unixstamp),
+      schoolyear ++ string_of_int(mp) ++ course ++ Js.Float.toString(unixstamp),
     );
 
   let makeGrade = (schoolyear, mp, studentid, course, grade, unixstamp): t => {
@@ -82,19 +72,14 @@ module Genesis: Genesis = {
   };
 
   let gradeHasChanged = (oldGrades, {course, grade}) =>
-    Js.Dict.get(oldGrades, course)
-    ->Option.map(o => o != grade)
-    ->Option.getWithDefault(true);
+    Js.Dict.get(oldGrades, course)->Option.map(o => o != grade)->Option.getWithDefault(true);
 
   let cleanGrades = (schoolyear, studentid, mp) =>
     List.fold_left(
       (grades, {Cheerio.course, grade}) =>
         switch (grade) {
         | Some(grade) =>
-          List.append(
-            [makeGrade(schoolyear, mp, studentid, course, grade, unixstamp)],
-            grades,
-          )
+          List.append([makeGrade(schoolyear, mp, studentid, course, grade, unixstamp)], grades)
         | None => grades
         },
       [],
@@ -113,8 +98,7 @@ module Genesis: Genesis = {
     Got.get(instance, "parents", ~params, ())
     |> Affect.map(data => {
          let entries =
-           data##body->Cheerio.load->Cheerio.parse->Array.to_list
-           |> List.map(Cheerio.entryFromJs);
+           data##body->Cheerio.load->Cheerio.parse->Array.to_list |> List.map(Cheerio.entryFromJs);
 
          cleanGrades(schoolyear, studentid, mp, entries);
        });
@@ -130,8 +114,7 @@ module type Database = {
     Affect.affect(AWS.DynamoDB.query_data(Genesis.t));
   let write: (db, Genesis.t) => Affect.affect(Genesis.t);
 
-  let fetchOldGrades:
-    (db, schoolyear, studentid, mp) => Affect.affect(Js.Dict.t(float));
+  let fetchOldGrades: (db, schoolyear, studentid, mp) => Affect.affect(Js.Dict.t(float));
 };
 
 module Database: Database = {
@@ -143,8 +126,7 @@ module Database: Database = {
     Affect.affect(AWS.DynamoDB.put_params(Genesis.t)) =
     (db, item, error, success) => {
       AWS.DynamoDB.put(db, item, (err, _) =>
-        Js.Nullable.isNullable(err)
-          ? success(item) : error(Js.Nullable.toOption(err))
+        Js.Nullable.isNullable(err) ? success(item) : error(Js.Nullable.toOption(err))
       );
     };
 
@@ -161,8 +143,7 @@ module Database: Database = {
     Affect.affect(AWS.DynamoDB.query_data(Genesis.t)) =
     (db, params, error, success) =>
       AWS.DynamoDB.query(db, params, (err, result) =>
-        Js.Nullable.isNullable(err)
-          ? success(result) : error(Js.Nullable.toOption(err))
+        Js.Nullable.isNullable(err) ? success(result) : error(Js.Nullable.toOption(err))
       );
 
   let fetch = (db, schoolyear, studentid, mp) => {
@@ -189,9 +170,7 @@ module Database: Database = {
       );
 
     params()
-    |> Option.getWithDefault(
-         filterExpression->Option.map(params(~filterExpression=_, ())),
-       )
+    |> Option.getWithDefault(filterExpression->Option.map(params(~filterExpression=_, ())))
     |> query(db);
   };
 

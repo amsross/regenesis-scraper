@@ -98,9 +98,12 @@ let write: AWS.APIGatewayProxy.handler({. "studentid": Js.Nullable.t(int)}) =
 
       Genesis.login(instance, genesis_uname, genesis_pword)
       |> Affect.flat_map(_, fetchGrades(_, studentid))
-      |> Affect.map(List.fold_left(List.append, []))
-      |> Affect.map(List.map(Database.write(db)))
-      |> Affect.flat_map(_, T.sequence)
+      |> Affect.flat_map(_, grades => {
+           grades
+           |> List.fold_left(List.append, [])
+           |> List.map(grade => Database.write(db, grade))
+           |> T.sequence
+         })
       |> Affect.map(Array.of_list)
       |> Affect.to_promise
       |> Promise.then_(results =>
