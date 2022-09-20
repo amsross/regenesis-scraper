@@ -57,12 +57,15 @@ functions:
       - http:
           method: GET
           path: /read/{studentid}
+          cors: true
       - http:
           method: GET
           path: /read/{studentid}/{schoolyear}
+          cors: true
       - http:
           method: GET
           path: /read/{studentid}/{schoolyear}/{mp}
+          cors: true
   update:
     handler: lib/js/src/Handler.write
     timeout: 16

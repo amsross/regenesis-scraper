@@ -100,18 +100,20 @@ let write: AWS.APIGatewayProxy.handler<{
     |> Promise.then_(body =>
       Promise.resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200))
     )
-    |> Promise.catch(err =>
+    |> Promise.catch(err => {
+      Js.Console.error(err)
+
       Promise.resolve(
         AWS.APIGatewayProxy.Result.make(~body="unknown error", ~headers, ~statusCode=500),
       )
-    )
+    })
   } catch {
   | exn =>
-    Js.Console.log(exn)
+    Js.Console.error(exn)
 
     Promise.resolve(
       AWS.APIGatewayProxy.Result.make(
-        ~body="error occured during wirte",
+        ~body="error occured during write",
         ~headers,
         ~statusCode=500,
       ),
