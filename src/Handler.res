@@ -117,8 +117,7 @@ let write: AWS.APIGatewayProxy.handler<{
 
     Genesis.login(instance, genesis_uname, genesis_pword)
     |> Future.flat_map(_, fetchGrades(_, studentid))
-    |> Future.map(writeGrades)
-    |> Future.flat_map(_, ListFuture.sequence)
+    |> Future.flat_map(_, grades => grades->writeGrades->ListFuture.sequence)
     |> Future.map(results => results->Array.of_list->Js.Json.stringifyAny)
     |> Future.to_promise
     |> Promise.then_(x =>

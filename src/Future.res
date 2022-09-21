@@ -14,12 +14,11 @@ let apply: (t<'a => 'b>, t<'a>) => t<'b> = (f, a) =>
 
 let map: ('a => 'b, t<'a>) => t<'b> = (f, a) => apply(pure(f), a)
 
-and fork: t<unit> => unit = callback => callback(_ => (), () => ())
+and fork: (exn => unit, 'data => unit, t<'daya>) => unit = (error, success, future) =>
+  future(err => error(err), data => success(data))
 
-let to_promise: t<'a> => Promise.t<'a> = callback =>
-  Promise.make((~resolve, ~reject) =>
-    callback(error => reject(. error), success => resolve(. success))
-  )
+let to_promise: t<'a> => Promise.t<'a> = future =>
+  Promise.make((~resolve, ~reject) => fork(err => reject(. err), data => resolve(. data), future))
 
 and from_promise: Promise.t<'a> => t<'a> = (promise, error, success) =>
   promise
