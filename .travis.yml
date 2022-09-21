@@ -6,6 +6,7 @@ cache:
     - node_modules
 install: npm ci
 script: npm run build
+before_deploy: npm run bundle -- --mode=production
 deploy:
 - provider: script
   skip_cleanup: true

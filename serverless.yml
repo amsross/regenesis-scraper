@@ -1,5 +1,10 @@
 service: regenesis-scraper
 
+package:
+  patterns:
+    - '!**'
+    - dist.*
+
 provider:
   name: aws
   runtime: nodejs16.x
@@ -52,7 +57,7 @@ custom:
 
 functions:
   read:
-    handler: lib/js/src/Handler.read
+    handler: dist.read
     events:
       - http:
           method: GET
@@ -67,7 +72,7 @@ functions:
           path: /read/{studentid}/{schoolyear}/{mp}
           cors: true
   update:
-    handler: lib/js/src/Handler.write
+    handler: dist.write
     timeout: 16
     events:
       - schedule:

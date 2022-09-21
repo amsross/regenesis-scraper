@@ -7,6 +7,7 @@
   "scripts": {
     "prebuild": "npm run clean",
     "build": "rescript build -with-deps",
+    "bundle": "webpack",
     "local": "AWS_REGION=us-east-1 serverless offline start --stage dev --verbose",
     "deploy": "serverless deploy",
     "start": "rescript build -w",
@@ -27,6 +28,8 @@
   "devDependencies": {
     "serverless": "^3.0.0",
     "serverless-offline": "^8.8.1",
-    "serverless-prune-plugin": "^2.0.1"
+    "serverless-prune-plugin": "^2.0.1",
+    "webpack": "^5.74.0",
+    "webpack-cli": "^4.10.0"
   }
 }
