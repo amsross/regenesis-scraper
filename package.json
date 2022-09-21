@@ -1,6 +1,9 @@
 {
   "name": "regenesis-scraper",
   "version": "0.1.0",
+  "engines": {
+    "node": "16"
+  },
   "scripts": {
     "prebuild": "npm run clean",
     "build": "rescript build -with-deps",
