@@ -1,5 +1,7 @@
 service: regenesis-scraper
 
+configValidationMode: error
+
 package:
   patterns:
     - '!**'
@@ -18,13 +20,15 @@ provider:
     SERVICE: ${self:service}
     STAGE: ${self:provider.stage}
     REGION: ${aws:region}
-  iamRoleStatements:
-    -  Effect: "Allow"
-       Action:
-         - "dynamodb:Query"
-         - "dynamodb:GetItem"
-         - "dynamodb:PutItem"
-       Resource: "arn:aws:dynamodb:${aws:region}:*:table/${self:service}-${self:provider.stage}"
+  iam:
+    role:
+      statements:
+        -  Effect: "Allow"
+           Action:
+             - "dynamodb:Query"
+             - "dynamodb:GetItem"
+             - "dynamodb:PutItem"
+           Resource: "arn:aws:dynamodb:${aws:region}:*:table/${self:service}-${self:provider.stage}"
 
 resources:
   Resources:
