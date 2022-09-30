@@ -60,8 +60,8 @@ custom:
     number: 2
 
 functions:
-  read:
-    handler: dist.read
+  grades_read:
+    handler: dist.grades_read
     events:
       - http:
           method: GET
@@ -69,14 +69,18 @@ functions:
           cors: true
       - http:
           method: GET
-          path: /read/{studentid}/{schoolyear}
+          path: /grades/{studentid}
           cors: true
       - http:
           method: GET
-          path: /read/{studentid}/{schoolyear}/{mp}
+          path: /grades/{studentid}/{schoolyear}
           cors: true
-  update:
-    handler: dist.write
+      - http:
+          method: GET
+          path: /grades/{studentid}/{schoolyear}/{mp}
+          cors: true
+  grades_write:
+    handler: dist.grades_write
     timeout: 16
     events:
       - schedule:

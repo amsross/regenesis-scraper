@@ -1,190 +1,143 @@
-module Option = Belt.Option
+exception No_Base_URL
+exception No_Username
+exception No_Password
+exception No_Student_ID
 
-@val @scope(("process", "env")) external stage: string = "STAGE"
-@val @scope(("process", "env")) external service: string = "SERVICE"
-let tableName = service ++ ("-" ++ stage)
-
-type schoolyear = string
-type studentid = int
-type mp = int
-
-module type Genesis = {
-  type username
-  type password
-  type authenticated
-  type t = {
-    partition_key: string,
-    sort_key: string,
-    studentid: int,
-    schoolyear: string,
-    mp: int,
-    course: string,
-    unixstamp: float,
-    grade: float,
-  }
-
-  let gradeHasChanged: (Js.Dict.t<float>, t) => bool
-
-  let login: (Got.instance, username, password) => Future.t<authenticated>
-  let fetch: (authenticated, Got.instance, schoolyear, studentid, mp) => Future.t<list<t>>
-}
-
-module Genesis: Genesis = {
-  type username = string
-  type password = string
-  type authenticated = unit
-  type t = {
-    partition_key: string,
-    sort_key: string,
-    studentid: int,
-    schoolyear: string,
-    mp: int,
-    course: string,
-    unixstamp: float,
-    grade: float,
-  }
-  let unixstamp = Js.Date.now()
-
-  let login = (instance, username, password) =>
-    Got.get(instance, "parents", ())
-    |> Future.flat_map(_, _ =>
-      Got.post(instance, "j_security_check", {"j_username": username, "j_password": password})
-    )
-    |> Future.map(_ => ())
-
-  let makeSortKey = (schoolyear, mp, course, unixstamp) =>
-    Js.String.replaceByRe(
-      %re("/\\W/g"),
-      "",
-      schoolyear ++ (string_of_int(mp) ++ (course ++ Js.Float.toString(unixstamp))),
-    )
-
-  let makeGrade = (schoolyear, mp, studentid, course, grade, unixstamp): t => {
-    partition_key: string_of_int(studentid),
-    sort_key: makeSortKey(schoolyear, mp, course, unixstamp),
-    studentid: studentid,
-    schoolyear: schoolyear,
-    mp: mp,
-    course: course,
-    unixstamp: unixstamp,
-    grade: grade,
-  }
-
-  let gradeHasChanged = (oldGrades, {course, grade}) =>
-    Js.Dict.get(oldGrades, course)->Option.map(o => o != grade)->Option.getWithDefault(true)
-
-  let cleanGrades = (schoolyear, studentid, mp) =>
-    List.fold_left((grades, {Cheerio.course: course, grade}) =>
-      switch grade {
-      | Some(grade) =>
-        List.append(list{makeGrade(schoolyear, mp, studentid, course, grade, unixstamp)}, grades)
-      | None => grades
-      }
-    , list{})
-
-  let fetch = (_, instance, schoolyear, studentid, mp) => {
-    let params = {
-      "tab1": "studentdata",
-      "tab2": "gradebook",
-      "tab3": "weeklysummary",
-      "action": "form",
-      "studentid": studentid,
-      "mpToView": "MP" ++ string_of_int(mp),
+module Result = Belt.Result
+module ResultFuture = {
+  let sequence: 'data 'err. result<Future.t<'data>, 'err> => Future.t<
+    result<'data, 'err>,
+  > = result =>
+    switch result {
+    | Ok(future) => future->Future.map(data => Ok(data))
+    | Error(err) => Future.pure(Error(err))
     }
-
-    Got.get(instance, "parents", ~params, ()) |> Future.map(data => {
-      let entries =
-        data["body"]->Cheerio.load->Cheerio.parse->Array.to_list |> List.map(Cheerio.entryFromJs)
-
-      cleanGrades(schoolyear, studentid, mp, entries)
-    })
-  }
 }
 
-module type Database = {
-  type db
-  let make: unit => db
-
-  let fetch: (
-    db,
-    option<schoolyear>,
-    option<studentid>,
-    option<mp>,
-  ) => Future.t<AWS.DynamoDB.query_data<Genesis.t>>
-  let write: (db, Genesis.t) => Future.t<Genesis.t>
-
-  let fetchOldGrades: (db, schoolyear, studentid, mp) => Future.t<Js.Dict.t<float>>
+module ListFuture = {
+  let sequence = xs => List.fold_right((acc, x) => {
+      x |> Future.flat_map(_, x => acc->Future.map(acc => List.append(list{acc}, x)))
+    }, xs, Future.pure(list{}))
 }
 
-module Database: Database = {
-  type db = AWS.DynamoDB.t
-  let make = AWS.DynamoDB.make
+module ResultApply = Fantasy.Apply({
+  type t<'data> = result<'data, exn>
+  let map = Result.map
+  let flatMap = Result.flatMap
+})
 
-  let put: (
-    db,
-    AWS.DynamoDB.put_params<Genesis.t>,
-  ) => Future.t<AWS.DynamoDB.put_params<Genesis.t>> = (db, item, error, success) =>
-    AWS.DynamoDB.put(db, item, (err, _) =>
-      switch Js.Nullable.toOption(err) {
-      | None => success(item)
-      | Some(exn) => error(Future.JsError(exn))
-      }
-    )
-
-  let query: (
-    db,
-    AWS.DynamoDB.query_params<{
-      ":partition_key": string,
-      ":schoolyear": Js.Nullable.t<string>,
-      ":mp": Js.Nullable.t<int>,
-    }>,
-  ) => Future.t<AWS.DynamoDB.query_data<Genesis.t>> = (db, params, error, success) =>
-    AWS.DynamoDB.query(db, params, (err, result) =>
-      switch Js.Nullable.toOption(err) {
-      | None => success(result)
-      | Some(exn) => error(Future.JsError(exn))
-      }
-    )
-
-  let fetch = (db, schoolyear, studentid, mp) => {
-    let studentid = Option.getExn(studentid)
-    let filterExpression = switch (schoolyear, mp) {
-    | (Some(_), Some(_)) => Some("schoolyear = :schoolyear and mp = :mp")
-    | (Some(_), None) => Some("schoolyear = :schoolyear")
-    | (None, Some(_)) => Some("mp = :mp")
-    | _ => None
+let resultToFuture = result =>
+  Future.pure(result)->Future.map(result =>
+    switch result {
+    | Ok(data) => data
+    | Error(ex) => raise(ex)
     }
+  )
 
-    let params = AWS.DynamoDB.query_params(
-      ~tableName,
-      ~select="ALL_ATTRIBUTES",
-      ~scanIndexForward=false,
-      ~keyConditionExpression="partition_key = :partition_key",
-      ~expressionAttributeValues={
-        ":partition_key": string_of_int(studentid),
-        ":schoolyear": Js.Nullable.fromOption(schoolyear),
-        ":mp": Js.Nullable.fromOption(mp),
-      },
+let optionToResult = (opt, error) =>
+  switch opt {
+  | None => Error(error)
+  | Some(opt) => Ok(opt)
+  }
+
+module Make = (
+  Config: {
+    let date: Js.Date.t
+    let genesis_uname: Js.Nullable.t<Genesis.username>
+    let genesis_pword: Js.Nullable.t<Genesis.password>
+    let baseURL: Js.Nullable.t<string>
+  },
+) => {
+  let year = Config.date |> Js.Date.getUTCFullYear |> int_of_float
+  let schoolyear =
+    Js.Date.getUTCMonth(Config.date) +. 1.0 > 7.0
+      ? string_of_int(year) ++ ("-" ++ string_of_int(year + 1))
+      : string_of_int(year - 1) ++ ("-" ++ string_of_int(year))
+  let mps = list{1, 2, 3, 4}
+
+  let db = try {
+    Ok(Database.make())
+  } catch {
+  | err => Error(err)
+  }
+
+  let baseURL = optionToResult(Config.baseURL->Js.Nullable.toOption, No_Base_URL)
+  let username = optionToResult(Config.genesis_uname->Js.Nullable.toOption, No_Username)
+  let password = optionToResult(Config.genesis_pword->Js.Nullable.toOption, No_Password)
+
+  let readGrades = {
+    (~studentid=?, ~schoolyear=?, ~mp=?, ()) => {
+      let studentid = optionToResult(studentid, No_Student_ID)
+
+      Ok((db, studentid) => Database.Grades.read(db, ~studentid, ~schoolyear?, ~mp?, ()))
+      ->ResultApply.ap(db)
+      ->ResultApply.ap(studentid)
+      ->Future.pure
+      ->Future.flat_map(results =>
+        switch results {
+        | Ok(results) => results
+        | Error(ex) => raise(ex)
+        }
+      )
+    }
+  }
+
+  let got = Ok(
+    baseURL =>
+      Got.create(
+        baseURL,
+        {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "curl/7.54.0",
+        },
+      ),
+  )->ResultApply.ap(baseURL)
+
+  let authenticated =
+    Ok((got, uname, pword) => Genesis.login(got, uname, pword))
+    ->ResultApply.ap(got)
+    ->ResultApply.ap(username)
+    ->ResultApply.ap(password)
+
+  let fetchFreshGrades = (studentid: option<Genesis.studentid>) => {
+    authenticated
+    ->ResultFuture.sequence
+    ->Future.map(authenticated =>
+      Ok((got, authenticated, studentid) => (got, authenticated, studentid))
+      ->ResultApply.ap(got)
+      ->ResultApply.ap(authenticated)
+      ->ResultApply.ap(optionToResult(studentid, No_Student_ID))
+      ->Result.map(((got, authenticated, studentid)) =>
+        mps
+        |> List.map(mp =>
+          Future.pure(items => Array.fold_right(({Genesis.course: course, grade}, dict) => {
+              Js.Dict.set(dict, course, grade)
+              dict
+            }, items, Js.Dict.empty()))
+          ->Future.apply(readGrades(~studentid, ~schoolyear, ~mp, ()))
+          ->Future.map(oldGrades => List.filter(Genesis.gradeHasChanged(oldGrades)))
+          ->Future.apply(Genesis.fetch(authenticated, got, schoolyear, studentid, mp))
+        )
+        |> ListFuture.sequence
+      )
     )
-
-    params()
-    |> Option.getWithDefault(filterExpression->Option.map(params(~filterExpression=_, ())))
-    |> query(db)
+    ->Future.flat_map(results =>
+      switch results {
+      | Ok(results) => results
+      | Error(ex) => raise(ex)
+      }
+    )
   }
 
-  let write = (db, item) => {
-    let params = AWS.DynamoDB.put_params(~tableName, ~item, ())
+  let writeUpdatedGrades: list<list<Genesis.t>> => Future.t<list<Genesis.t>> = grades => {
+    let writeGrades = (grades, db) =>
+      grades
+      |> List.fold_left(List.append, list{})
+      |> List.map(grade => Database.Grades.create(db, ~grade))
 
-    put(db, params) |> Future.map(_ => item)
+    Ok(db => grades->writeGrades(db)->ListFuture.sequence)
+    ->ResultApply.ap(db)
+    ->resultToFuture
+    ->Future.flat_map(x => x)
   }
-
-  let fetchOldGrades = (db, schoolyear, studentid, mp) =>
-    fetch(db, Some(schoolyear), Some(studentid), Some(mp)) |> Future.map(result => {
-      let items = result |> AWS.DynamoDB.itemsGet
-
-      Array.fold_right(({Genesis.course: course, grade}, dict) => {
-        Js.Dict.set(dict, course, grade)
-        dict
-      }, items, Js.Dict.empty())
-    })
 }
