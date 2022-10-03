@@ -1,6 +1,7 @@
 module Option = Belt.Option
 module Array = Belt.Array
 module Decode = Json.Decode
+module StringMap = Belt.Map.String
 
 module OptionApply = Fantasy.Apply({
   type t<'a> = option<'a>
@@ -112,6 +113,69 @@ module Grades = {
             items
           }
         }
+      })
+    })
+  }
+}
+
+module Filters = {
+  type t = {
+    schoolyear: Genesis.schoolyear,
+    mps: array<Genesis.mp>,
+  }
+
+  type db_t = {
+    schoolyear: Genesis.schoolyear,
+    mp: Genesis.mp,
+  }
+
+  let decode: Decode.t<db_t> = Decode.object((field): db_t => {
+    schoolyear: field.required(. "schoolyear", Decode.string),
+    mp: field.required(. "mp", Decode.int),
+  })
+
+  let create = (db, ~param: t) => Write.make(param, db)->Future.map(_ => param)
+
+  let rec filtersByYear = filters => filtersByProperty(filters, ({schoolyear}: db_t) => schoolyear)
+  and filtersByProperty = (filters, toKey) =>
+    filters->Belt.Array.reduce(StringMap.empty, (map, filter) => {
+      let key = toKey(filter)
+      map->StringMap.getWithDefault(key, [])->Belt.Array.concat([filter]) |> map->StringMap.set(key)
+    })
+
+  let read = (db, ~studentid: Genesis.studentid, ~schoolyear=?, ()): Future.t<array<t>> => {
+    let filterExpression = switch schoolyear {
+    | Some(_) => "studentid = :studentid and schoolyear = :schoolyear"
+    | _ => "studentid = :studentid"
+    }
+
+    Read.Params.make(
+      {
+        ":partition_key": "params",
+        ":studentid": string_of_int(studentid),
+        ":schoolyear": Js.Nullable.fromOption(schoolyear),
+      },
+      filterExpression,
+    )
+    ->Read.make(db)
+    ->Future.map(result => {
+      let items = result->AWS.DynamoDB.itemsGet
+
+      items
+      ->Array.reduce([], (items, json) => {
+        switch json->Json.decode(decode) {
+        | Ok(item) => items->Array.concat([item])
+        | Error(parseError) => {
+            Js.Console.error("unable to parse item: " ++ parseError)
+            items
+          }
+        }
+      })
+      ->filtersByYear
+      ->StringMap.reduce([], (filters, schoolyear, mps) => {
+        let mps = mps->Array.map(({mp}) => mp)
+
+        filters->Array.concat([{schoolyear: schoolyear, mps: mps}])
       })
     })
   }

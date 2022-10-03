@@ -60,6 +60,17 @@ custom:
     number: 2
 
 functions:
+  filters_read:
+    handler: dist.filters_read
+    events:
+      - http:
+          method: GET
+          path: /filters/{studentid}
+          cors: true
+      - http:
+          method: GET
+          path: /filters/{studentid}/{schoolyear}
+          cors: true
   grades_read:
     handler: dist.grades_read
     events:

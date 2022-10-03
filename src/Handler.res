@@ -106,3 +106,31 @@ let grades_write: AWS.APIGatewayProxy.handler<{
     )
   })
 }
+
+let filters_read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (event, _) => {
+  let params = event->AWS.APIGatewayProxy.Event.pathParametersGet->Js.Nullable.toOption
+  let studentid: option<Genesis.studentid> =
+    params->Option.flatMap(params => params->Js.Dict.get("studentid"))->Option.map(int_of_string)
+  let schoolyear: option<Genesis.schoolyear> =
+    params->Option.flatMap(params => params->Js.Dict.get("schoolyear"))
+
+  Js.Promise.make((~resolve, ~reject as _) => {
+    App.readFilters(~studentid?, ~schoolyear?, ())
+    ->Future.map(results =>
+      switch results->Js.Json.stringifyAny {
+      | Some(result) => result
+      | None => raise(Could_Not_Stringify)
+      }
+    )
+    ->Future.fork(
+      err => {
+        Js.Console.error(err)
+
+        resolve(.
+          AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
+        )
+      },
+      body => resolve(. AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
+    )
+  })
+}

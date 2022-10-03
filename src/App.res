@@ -65,6 +65,23 @@ module Make = (
   let username = optionToResult(Config.genesis_uname->Js.Nullable.toOption, No_Username)
   let password = optionToResult(Config.genesis_pword->Js.Nullable.toOption, No_Password)
 
+  let readFilters = {
+    (~studentid=?, ~schoolyear=?, ()) => {
+      let studentid = optionToResult(studentid, No_Student_ID)
+
+      Ok((db, studentid) => Database.Filters.read(db, ~studentid, ~schoolyear?, ()))
+      ->ResultApply.ap(db)
+      ->ResultApply.ap(studentid)
+      ->Future.pure
+      ->Future.flat_map(results =>
+        switch results {
+        | Ok(results) => results
+        | Error(ex) => raise(ex)
+        }
+      )
+    }
+  }
+
   let readGrades = {
     (~studentid=?, ~schoolyear=?, ~mp=?, ()) => {
       let studentid = optionToResult(studentid, No_Student_ID)
