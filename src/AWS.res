@@ -72,11 +72,11 @@ module DynamoDB = {
   }
 
   @deriving(abstract)
-  type query_data<'data> = {
+  type query_data = {
     @as("Count")
     count: int,
     @as("Items")
-    items: array<'data>,
+    items: array<Js.Json.t>,
     @as("ScannedCount")
     scannedCount: int,
     @as("ConsumedCapacity") @optional
@@ -84,7 +84,7 @@ module DynamoDB = {
   }
 
   @send
-  external query: (t, query_params<'item>, callback<error, query_data<'data>>) => unit = "query"
+  external query: (t, query_params<'item>, callback<error, query_data>) => unit = "query"
 
   @deriving(abstract)
   type put_params<'item> = {

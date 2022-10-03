@@ -2,8 +2,8 @@
   "name": "regenesis-scraper",
   "version": "0.1.0",
   "sources": {
-    "dir" : "src",
-    "subdirs" : true
+    "dir": "src",
+    "subdirs": true
   },
   "package-specs": {
     "module": "commonjs",
@@ -11,9 +11,13 @@
   },
   "suffix": ".js",
   "bs-dependencies": [
+    "@glennsl/rescript-json-combinators"
+  ],
+  "bsc-flags": [
+    "-open JsonCombinators"
   ],
   "warnings": {
-    "error" : "+101"
+    "error": "+101"
   },
   "namespace": true,
   "refmt": 3

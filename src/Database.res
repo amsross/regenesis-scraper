@@ -1,4 +1,6 @@
 module Option = Belt.Option
+module Array = Belt.Array
+module Decode = Json.Decode
 
 module OptionApply = Fantasy.Apply({
   type t<'a> = option<'a>
@@ -39,7 +41,7 @@ module Write = {
 }
 
 module Read = {
-  type data<'t> = AWS.DynamoDB.query_data<'t>
+  type data = AWS.DynamoDB.query_data
 
   module Params = {
     type t<'t> = AWS.DynamoDB.query_params<'t>
@@ -56,7 +58,7 @@ module Read = {
       )
   }
 
-  let make: 'a 'b. (Params.t<'a>, db) => Future.t<data<'b>> = (params, db, error, success) =>
+  let make: 'a 'b. (Params.t<'a>, db) => Future.t<data> = (params, db, error, success) =>
     AWS.DynamoDB.query(db, params, (err, result) =>
       switch Js.Nullable.toOption(err) {
       | None => success(result)
@@ -67,6 +69,17 @@ module Read = {
 
 module Grades = {
   type t = Genesis.t
+
+  let decode: Decode.t<t> = Decode.object((field): t => {
+    partition_key: field.required(. "partition_key", Decode.string),
+    sort_key: field.required(. "sort_key", Decode.string),
+    studentid: field.required(. "studentid", Decode.int),
+    schoolyear: field.required(. "schoolyear", Decode.string),
+    mp: field.required(. "mp", Decode.int),
+    course: field.required(. "course", Decode.string),
+    unixstamp: field.required(. "unixstamp", Decode.float),
+    grade: field.required(. "grade", Decode.float),
+  })
 
   let create = (db, ~grade: t) => Write.make(grade, db)->Future.map(_ => grade)
 
@@ -88,6 +101,18 @@ module Grades = {
       filterExpression,
     )
     ->Read.make(db)
-    ->Future.map(result => result->AWS.DynamoDB.itemsGet)
+    ->Future.map(result => {
+      let items = result->AWS.DynamoDB.itemsGet
+
+      items->Array.reduce([], (items, json) => {
+        switch json->Json.decode(decode) {
+        | Ok(item) => items->Array.concat([item])
+        | Error(parseError) => {
+            Js.Console.error("unable to parse item: " ++ parseError)
+            items
+          }
+        }
+      })
+    })
   }
 }
