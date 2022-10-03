@@ -1,7 +1,9 @@
 type db
 
 module Grades: {
-  let create: (db, ~grade: Genesis.t) => Future.t<Genesis.t>
+  type t = Genesis.t
+
+  let create: (db, ~grade: t) => Future.t<t>
 
   let read: (
     db,
@@ -9,7 +11,7 @@ module Grades: {
     ~schoolyear: Genesis.schoolyear=?,
     ~mp: Genesis.mp=?,
     unit,
-  ) => Future.t<array<Genesis.t>>
+  ) => Future.t<array<t>>
 }
 
 let make: unit => db

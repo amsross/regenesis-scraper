@@ -44,17 +44,13 @@ module Read = {
   module Params = {
     type t<'t> = AWS.DynamoDB.query_params<'t>
 
-    let make: 'a. (string, 'a, option<string>) => t<'a> = (
-      keyConditionExpression,
-      expressionAttributeValues,
-      filterExpression,
-    ) =>
+    let make: 'a. ('a, string) => t<'a> = (expressionAttributeValues, filterExpression) =>
       AWS.DynamoDB.query_params(
         ~tableName,
         ~select="ALL_ATTRIBUTES",
         ~scanIndexForward=false,
-        ~filterExpression?,
-        ~keyConditionExpression,
+        ~filterExpression,
+        ~keyConditionExpression="partition_key = :partition_key",
         ~expressionAttributeValues,
         (),
       )
@@ -70,22 +66,22 @@ module Read = {
 }
 
 module Grades = {
-  let create = (db, ~grade: Genesis.t) => Write.make(grade, db)->Future.map(_ => grade)
+  type t = Genesis.t
 
-  let read = (db, ~studentid: Genesis.studentid, ~schoolyear=?, ~mp=?, ()): Future.t<
-    array<Genesis.t>,
-  > => {
+  let create = (db, ~grade: t) => Write.make(grade, db)->Future.map(_ => grade)
+
+  let read = (db, ~studentid: Genesis.studentid, ~schoolyear=?, ~mp=?, ()): Future.t<array<t>> => {
     let filterExpression = switch (schoolyear, mp) {
-    | (Some(_), Some(_)) => Some("schoolyear = :schoolyear and mp = :mp")
-    | (Some(_), None) => Some("schoolyear = :schoolyear")
-    | (None, Some(_)) => Some("mp = :mp")
-    | _ => None
+    | (Some(_), Some(_)) => "studentid = :studentid and schoolyear = :schoolyear and mp = :mp"
+    | (Some(_), None) => "studentid = :studentid and schoolyear = :schoolyear"
+    | (None, Some(_)) => "studentid = :studentid and mp = :mp"
+    | _ => "studentid = :studentid"
     }
 
     Read.Params.make(
-      "partition_key = :partition_key",
       {
         ":partition_key": string_of_int(studentid),
+        ":studentid": studentid,
         ":schoolyear": Js.Nullable.fromOption(schoolyear),
         ":mp": Js.Nullable.fromOption(mp),
       },
