@@ -16,8 +16,9 @@ module Grades: {
 
 module Filters: {
   type t
+  type db_t
 
-  let create: (db, ~param: t) => Future.t<t>
+  let create: (db, ~filter: db_t) => Future.t<db_t>
 
   let read: (
     db,

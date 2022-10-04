@@ -127,15 +127,26 @@ module Make = (
       ->Result.map(((got, authenticated, studentid)) =>
         mps
         |> List.map(mp =>
-          Future.pure(items => Array.fold_right(({Genesis.course: course, grade}, dict) => {
-              Js.Dict.set(dict, course, grade)
-              dict
-            }, items, Js.Dict.empty()))
-          ->Future.apply(readGrades(~studentid, ~schoolyear, ~mp, ()))
-          ->Future.map(oldGrades => List.filter(Genesis.gradeHasChanged(oldGrades)))
-          ->Future.apply(Genesis.fetch(authenticated, got, schoolyear, studentid, mp))
+          Genesis.fetch(authenticated, got, schoolyear, studentid, mp)->Future.map(newGrades => (
+            mp,
+            newGrades,
+          ))
         )
         |> ListFuture.sequence
+        |> Future.flat_map(_, results =>
+          results
+          |> List.filter(((_, grades)) => List.length(grades) > 0)
+          |> List.map(((mp, newGrades)) =>
+            Future.pure(items => Array.fold_right(({Genesis.course: course, grade}, dict) => {
+                Js.Dict.set(dict, course, grade)
+                dict
+              }, items, Js.Dict.empty()))
+            ->Future.apply(readGrades(~studentid, ~schoolyear, ~mp, ()))
+            ->Future.map(oldGrades => List.filter(Genesis.gradeHasChanged(oldGrades)))
+            ->Future.apply(Future.pure(newGrades))
+          )
+          |> ListFuture.sequence
+        )
       )
     )
     ->Future.flat_map(results =>
