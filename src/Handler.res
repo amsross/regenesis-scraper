@@ -50,6 +50,13 @@ let headers = Js.Dict.fromList(list{
   ("Access-Control-Allow-Credentials", Js.Json.boolean(true)),
 })
 
+let logError = err =>
+  switch err {
+  | Future.PromiseError(err) => Js.Console.error(err)
+  | Js.Exn.Error(obj) => obj->Js.Exn.message->Option.forEach(Js.Console.error)
+  | err => Js.Console.error(err)
+  }
+
 let grades_read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (event, _) => {
   let params = event->AWS.APIGatewayProxy.Event.pathParametersGet->Js.Nullable.toOption
   let studentid: option<Genesis.studentid> =
@@ -69,7 +76,7 @@ let grades_read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (eve
     )
     ->Future.fork(
       err => {
-        Js.Console.error(err)
+        logError(err)
 
         resolve(.
           AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
@@ -96,7 +103,7 @@ let grades_write: AWS.APIGatewayProxy.handler<{
     )
     ->Future.fork(
       err => {
-        Js.Console.error(err)
+        logError(err)
 
         resolve(.
           AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
@@ -124,7 +131,7 @@ let filters_read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (ev
     )
     ->Future.fork(
       err => {
-        Js.Console.error(err)
+        logError(err)
 
         resolve(.
           AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
