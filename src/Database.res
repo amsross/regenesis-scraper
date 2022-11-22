@@ -202,7 +202,6 @@ module Filters = {
     | _ => ("studentid = :studentid", expressionAttributeValues)
     }
 
-
     Read.Params.make(Js.Dict.fromArray(expressionAttributeValues), filterExpression)
     ->Read.make(db)
     ->Future.map(result => {
