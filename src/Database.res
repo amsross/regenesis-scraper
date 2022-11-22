@@ -118,7 +118,7 @@ module Grades = {
       )
     | (Some(schoolyear), None) => (
         "studentid = :studentid and schoolyear = :schoolyear",
-        [(":schoolyear", Js.Dict.fromArray([("N", schoolyear)]))]->Array.concat(
+        [(":schoolyear", Js.Dict.fromArray([("S", schoolyear)]))]->Array.concat(
           expressionAttributeValues,
         ),
       )
