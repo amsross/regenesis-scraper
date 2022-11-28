@@ -136,21 +136,28 @@ module Make = (
 
         grades->Future.flat_map(results =>
           results
-          ->List.keep(((mp, grades)) => {
-            let count = List.length(grades)
-            Js.Console.log4("found %d grades for %s MP%d", count, schoolyear, mp)
+          ->List.map(((mp, newGrades)) => {
+            Js.Console.log4("found %d grades for %s MP%d", List.length(newGrades), schoolyear, mp)
 
-            count > 0
-          })
-          ->List.map(((mp, newGrades)) =>
-            Future.pure(items => Array.fold_right(({Genesis.course: course, grade}, dict) => {
+            let oldGrades =
+              List.length(newGrades) > 0
+                ? readGrades(~studentid, ~schoolyear, ~mp, ())
+                : Future.pure([])
+
+            let oldGradesDict = oldGrades->Future.map(items =>
+              Array.fold_right(({Genesis.course: course, grade}, dict) => {
                 Js.Dict.set(dict, course, grade)
                 dict
-              }, items, Js.Dict.empty()))
-            ->Future.apply(readGrades(~studentid, ~schoolyear, ~mp, ()))
-            ->Future.map(oldGrades => List.keep(_, Genesis.gradeHasChanged(oldGrades)))
-            ->Future.apply(Future.pure(newGrades))
-          )
+              }, items, Js.Dict.empty())
+            )
+
+            oldGradesDict->Future.map(oldGrades => {
+              let kept = List.keep(newGrades, Genesis.gradeHasChanged(oldGrades))
+              Js.Console.log4("kept %d grades for %s MP%d", List.length(kept), schoolyear, mp)
+
+              kept
+            })
+          })
           ->ListFuture.sequence
         )
       })

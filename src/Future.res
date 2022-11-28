@@ -25,3 +25,6 @@ and from_promise: Promise.t<'a> => t<'a> = (promise, error, success) =>
   |> Promise.then_(success' => Promise.resolve(success(success')))
   |> Promise.catch(err => Promise.resolve(error(PromiseError(err))))
   |> ignore
+
+let liftA2: 'a 'b 'c. (('a, 'b) => 'c, t<'a>, t<'b>) => t<'c> = (fn, a, b) =>
+  pure(fn)->apply(a)->apply(b)
