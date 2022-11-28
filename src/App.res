@@ -18,7 +18,7 @@ module ResultFuture = {
 module ListFuture = {
   let sequence = xs =>
     List.reduce(xs, Future.pure(list{}), (x, acc) =>
-      x->Future.flat_map(x => acc->Future.map(acc => List.concat(list{acc}, x)))
+      x->Future.flat_map(x => acc->Future.map(acc => List.concat(x, list{acc})))
     )
 }
 
@@ -56,6 +56,7 @@ module Make = (
       ? string_of_int(year) ++ ("-" ++ string_of_int(year + 1))
       : string_of_int(year - 1) ++ ("-" ++ string_of_int(year))
   let mps = list{1, 2, 3, 4}
+  Js.Console.log3("year=%d schoolyear=%s", year, schoolyear)
 
   let db = try {
     Ok(Database.make())
@@ -135,7 +136,12 @@ module Make = (
 
         grades->Future.flat_map(results =>
           results
-          ->List.keep(((_, grades)) => List.length(grades) > 0)
+          ->List.keep(((mp, grades)) => {
+            let count = List.length(grades)
+            Js.Console.log4("found %d grades for %s MP%d", count, schoolyear, mp)
+
+            count > 0
+          })
           ->List.map(((mp, newGrades)) =>
             Future.pure(items => Array.fold_right(({Genesis.course: course, grade}, dict) => {
                 Js.Dict.set(dict, course, grade)
