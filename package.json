@@ -8,7 +8,7 @@
     "prebuild": "npm run clean",
     "build": "rescript build -with-deps",
     "bundle": "webpack",
-    "local": "AWS_REGION=us-east-1 serverless offline start --stage dev --verbose",
+    "local": "REGION=us-east-1 SERVICE=regenesis-scraper serverless offline start --stage dev --verbose",
     "deploy": "serverless deploy",
     "start": "rescript build -w",
     "clean": "rescript clean"
