@@ -24,7 +24,8 @@
     "cheerio": "^1.0.0-rc.10",
     "got": "^11.8.5",
     "rescript": "^9.1.4",
-    "tough-cookie": "^4.1.2"
+    "tough-cookie": "^4.1.2",
+    "user-agents": "^1.0.1367"
   },
   "devDependencies": {
     "serverless": "^3.22.0",
