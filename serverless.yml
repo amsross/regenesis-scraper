@@ -9,11 +9,10 @@ package:
 
 provider:
   name: aws
-  runtime: nodejs16.x
+  runtime: nodejs18.x
   stage: ${opt:stage, 'dev'}
   memorySize: 128
   environment:
-    AWS_ACCOUNT_ID: ${env:AWS_ACCOUNT_ID}
     GENESIS_URL: ${env:GENESIS_URL}
     GENESIS_UNAME: ${env:GENESIS_UNAME}
     GENESIS_PWORD: ${env:GENESIS_PWORD}
