@@ -1,5 +1,5 @@
 type t
 
-@new @module external make: unit => t = "user-agents"
+@module("user-agents") external make: unit => t = "random"
 
-@send external toString: t => string = "toString"
+@send external toString: t => string = "%identity"
