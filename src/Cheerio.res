@@ -18,8 +18,8 @@ type entry = {
 }
 
 let parse: selector => array<abs_entry> = %raw(`
-  $ => $("table.list > tbody > tr:not(.listheading)").map((_, e) => ({
-    course: trim($(e).children("td:nth-child(1)").text()),
-    grade: toNumber($(e).children("td:nth-child(3)").text()),
+  $ => $("div.itemContainer > div").map((_, e) => ({
+    course: trim($(e).find("div:nth-child(2) > div > span").text()),
+    grade: toNumber($(e).children("div:nth-child(1)").text()),
   })).toArray()
   `)
