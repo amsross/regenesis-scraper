@@ -4,11 +4,6 @@ module Option = Belt.Option
 module Promise = Js.Promise
 
 exception Could_Not_Stringify
-module ListFuture = {
-  let sequence = xs => List.fold_right((acc, x) => {
-      x |> Future.flat_map(_, x => acc->Future.map(acc => List.append(list{acc}, x)))
-    }, xs, Future.pure(list{}))
-}
 
 @val @scope(("process", "env"))
 external genesis_uname: Genesis.username = "GENESIS_UNAME"
@@ -18,7 +13,7 @@ external genesis_pword: Genesis.password = "GENESIS_PWORD"
 external baseURL: string = "GENESIS_URL"
 
 let date = Js.Date.make()
-let year = date |> Js.Date.getUTCFullYear |> int_of_float
+let year = int_of_float(Js.Date.getUTCFullYear(date))
 let schoolyear =
   Js.Date.getUTCMonth(date) +. 1.0 > 7.0
     ? string_of_int(year) ++ ("-" ++ string_of_int(year + 1))
@@ -78,11 +73,11 @@ let grades_read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (eve
       err => {
         logError(err)
 
-        resolve(.
+        resolve(
           AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
         )
       },
-      body => resolve(. AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
+      body => resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
     )
   })
 }
@@ -94,9 +89,9 @@ let grades_write: AWS.APIGatewayProxy.handler<{
 
   Js.Promise.make((~resolve, ~reject as _) => {
     App.fetchFreshGrades(studentid)
-    ->Future.flat_map(App.writeUpdatedGrades)
+    ->Future.flat_map(grades => App.writeUpdatedGrades(grades))
     ->Future.map(results =>
-      switch results->Array.of_list->Js.Json.stringifyAny {
+      switch results->List.toArray->Js.Json.stringifyAny {
       | Some(result) => result
       | None => raise(Could_Not_Stringify)
       }
@@ -105,11 +100,11 @@ let grades_write: AWS.APIGatewayProxy.handler<{
       err => {
         logError(err)
 
-        resolve(.
+        resolve(
           AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
         )
       },
-      body => resolve(. AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
+      body => resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
     )
   })
 }
@@ -133,11 +128,11 @@ let filters_read: AWS.APIGatewayProxy.handler<AWS.APIGatewayProxy.Event.t> = (ev
       err => {
         logError(err)
 
-        resolve(.
+        resolve(
           AWS.APIGatewayProxy.Result.make(~body="something went wrong", ~headers, ~statusCode=500),
         )
       },
-      body => resolve(. AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
+      body => resolve(AWS.APIGatewayProxy.Result.make(~body, ~headers, ~statusCode=200)),
     )
   })
 }

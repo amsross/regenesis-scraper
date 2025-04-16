@@ -24,8 +24,8 @@ module ListFuture = {
 
 module ResultApply = Fantasy.Apply({
   type t<'data> = result<'data, exn>
-  let map = Result.map
-  let flatMap = Result.flatMap
+  let map: (t<'data>, 'data => 'b) => t<'b> = (r, f) => Result.map(r, f)
+  let flatMap: (t<'data>, 'data => t<'b>) => t<'b> = (r, f) => Result.flatMap(r, f)
 })
 
 let resultToFuture = result =>
@@ -57,6 +57,7 @@ module Make = (
       : string_of_int(year - 1) ++ ("-" ++ string_of_int(year))
   let mps = list{1, 2, 3, 4}
   Js.Console.log3("year=%d schoolyear=%s", year, schoolyear)
+  Js.Console.log3("genesis_uname=%s genesis_pword=%s", Config.genesis_uname, Config.genesis_pword)
 
   let db = try {
     Ok(Database.make())
@@ -71,7 +72,7 @@ module Make = (
   let readFilters = (~studentid=?, ~schoolyear=?, ()) => {
     let studentid = optionToResult(studentid, No_Student_ID)
 
-    Ok((db, studentid) => Database.Filters.read(db, ~studentid, ~schoolyear?, ()))
+    Ok(db => studentid => Database.Filters.read(db, ~studentid, ~schoolyear?, ()))
     ->ResultApply.ap(db)
     ->ResultApply.ap(studentid)
     ->Future.pure
@@ -86,7 +87,7 @@ module Make = (
   let readGrades = (~studentid=?, ~schoolyear=?, ~mp=?, ()) => {
     let studentid = optionToResult(studentid, No_Student_ID)
 
-    Ok((db, studentid) => Database.Grades.read(db, ~studentid, ~schoolyear?, ~mp?, ()))
+    Ok(db => studentid => Database.Grades.read(db, ~studentid, ~schoolyear?, ~mp?, ()))
     ->ResultApply.ap(db)
     ->ResultApply.ap(studentid)
     ->Future.pure
@@ -110,7 +111,7 @@ module Make = (
   )->ResultApply.ap(baseURL)
 
   let authenticated =
-    Ok((got, uname, pword) => Genesis.login(got, uname, pword))
+    Ok(got => uname => pword => Genesis.login(got, uname, pword))
     ->ResultApply.ap(got)
     ->ResultApply.ap(username)
     ->ResultApply.ap(password)
@@ -119,46 +120,64 @@ module Make = (
     authenticated
     ->ResultFuture.sequence
     ->Future.map(authenticated =>
-      Ok((got, authenticated, studentid) => (got, authenticated, studentid))
+      Ok(got => authenticated => studentid => (got, authenticated, studentid))
       ->ResultApply.ap(got)
       ->ResultApply.ap(authenticated)
       ->ResultApply.ap(optionToResult(studentid, No_Student_ID))
       ->Result.map(((got, authenticated, studentid)) => {
         let grades =
           mps
-          ->List.map(mp =>
-            Genesis.fetch(authenticated, got, schoolyear, studentid, mp)->Future.map(newGrades => (
-              mp,
-              newGrades,
-            ))
+          ->List.map(
+            mp =>
+              Genesis.fetch(authenticated, got, schoolyear, studentid, mp)->Future.map(
+                newGrades => (mp, newGrades),
+              ),
           )
           ->ListFuture.sequence
 
-        grades->Future.flat_map(results =>
-          results
-          ->List.map(((mp, newGrades)) => {
-            Js.Console.log4("found %d grades for %s MP%d", List.length(newGrades), schoolyear, mp)
+        grades->Future.flat_map(
+          results =>
+            results
+            ->List.map(
+              ((mp, newGrades)) => {
+                Js.Console.log4(
+                  "found %d grades for %s MP%d",
+                  List.length(newGrades),
+                  schoolyear,
+                  mp,
+                )
 
-            let oldGrades =
-              List.length(newGrades) > 0
-                ? readGrades(~studentid, ~schoolyear, ~mp, ())
-                : Future.pure([])
+                let oldGrades =
+                  List.length(newGrades) > 0
+                    ? readGrades(~studentid, ~schoolyear, ~mp, ())
+                    : Future.pure([])
 
-            let oldGradesDict = oldGrades->Future.map(items =>
-              Array.fold_right(({Genesis.course: course, grade}, dict) => {
-                Js.Dict.set(dict, course, grade)
-                dict
-              }, items, Js.Dict.empty())
+                let oldGradesDict = oldGrades->Future.map(
+                  items =>
+                    Array.reduce(
+                      items,
+                      Js.Dict.empty(),
+                      (dict, {Genesis.course: course, grade}) => {
+                        Js.Dict.set(dict, course, grade)
+                        dict
+                      },
+                    ),
+                )
+
+                oldGradesDict->Future.map(
+                  oldGrades => {
+                    let kept = List.keep(
+                      newGrades,
+                      newGrade => Genesis.gradeHasChanged(oldGrades, newGrade),
+                    )
+                    Js.Console.log4("kept %d grades for %s MP%d", List.length(kept), schoolyear, mp)
+
+                    kept
+                  },
+                )
+              },
             )
-
-            oldGradesDict->Future.map(oldGrades => {
-              let kept = List.keep(newGrades, Genesis.gradeHasChanged(oldGrades))
-              Js.Console.log4("kept %d grades for %s MP%d", List.length(kept), schoolyear, mp)
-
-              kept
-            })
-          })
-          ->ListFuture.sequence
+            ->ListFuture.sequence,
         )
       })
     )

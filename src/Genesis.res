@@ -36,25 +36,25 @@ let makeSortKey = (schoolyear, mp, course, unixstamp) =>
 let makeGrade = (schoolyear, mp, studentid, course, grade, unixstamp): t => {
   partition_key: string_of_int(studentid),
   sort_key: makeSortKey(schoolyear, mp, course, unixstamp),
-  studentid: studentid,
-  schoolyear: schoolyear,
-  mp: mp,
-  course: course,
-  unixstamp: unixstamp,
-  grade: grade,
+  studentid,
+  schoolyear,
+  mp,
+  course,
+  unixstamp,
+  grade,
 }
 
 let gradeHasChanged = (oldGrades, {course, grade}) =>
   Js.Dict.get(oldGrades, course)->Option.map(o => o != grade)->Option.getWithDefault(true)
 
-let cleanGrades = (schoolyear, studentid, mp) =>
-  List.fold_left((grades, {Cheerio.course: course, grade}) =>
+let cleanGrades = (schoolyear, studentid, mp, values) =>
+  List.reduce(values, list{}, (grades, {Cheerio.course: course, grade}) =>
     switch grade {
     | Some(grade) =>
-      List.append(list{makeGrade(schoolyear, mp, studentid, course, grade, unixstamp)}, grades)
+      List.concat(list{makeGrade(schoolyear, mp, studentid, course, grade, unixstamp)}, grades)
     | None => grades
     }
-  , list{})
+  )
 
 let fetch = (_, instance, schoolyear, studentid, mp) => {
   let params = {
@@ -67,8 +67,9 @@ let fetch = (_, instance, schoolyear, studentid, mp) => {
   }
 
   Got.get(instance, "parents", ~params, ())->Future.map(data => {
-    let entries =
-      data["body"]->Cheerio.load->Cheerio.parse->Array.to_list |> List.map(Cheerio.entryFromJs)
+    let entries = List.map(data["body"]->Cheerio.load->Cheerio.parse->List.fromArray, js =>
+      Cheerio.entryFromJs(js)
+    )
 
     cleanGrades(schoolyear, studentid, mp, entries)
   })

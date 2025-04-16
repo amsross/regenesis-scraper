@@ -8,7 +8,9 @@ module Decode = Json.Decode
 
 module OptionApply = Fantasy.Apply({
   type t<'a> = option<'a>
-  include Belt.Option
+  // include Belt.Option
+  let map: (t<'a>, 'a => 'b) => t<'b> = (o, f) => Belt.Option.map(o, f)
+  let flatMap: (t<'a>, 'a => t<'b>) => t<'b> = (o, f) => Belt.Option.flatMap(o, f)
 })
 
 type db = AWS.DynamoDB.t
@@ -18,9 +20,8 @@ let make = AWS.DynamoDB.make
 @val @scope(("process", "env")) external stage: Nullable.t<string> = "STAGE"
 @val @scope(("process", "env")) external service: Nullable.t<string> = "SERVICE"
 let tableName =
-  OptionApply.liftA2(service->Nullable.toOption, stage->Nullable.toOption, (service, stage) =>
-    service ++ "-" ++ stage
-  )->Option.getWithDefault("unknown")
+  OptionApply.liftA2(service->Nullable.toOption, stage->Nullable.toOption, service => stage =>
+    service ++ "-" ++ stage)->Option.getWithDefault("unknown")
 
 module Create = {
   type data = AWS.DynamoDB.PutItemCommand.Output.t
@@ -39,11 +40,16 @@ module Create = {
       )->AWS.DynamoDB.PutItemCommand.make
   }
 
-  let make: (Params.t, db) => Future.t<data> = (params, db, error, success) => {
-    AWS.DynamoDB.PutItemCommand.send(db, params)
-    |> Promise.then_(result => success(result)->Promise.resolve)
-    |> Promise.catch(err => error(Future.PromiseError(err))->Promise.resolve)
-    |> ignore
+  let make: (Params.t, db) => Future.t<data> = (params, db) => (error, success) => {
+    ignore(
+      Promise.catch(
+        err => error(Future.PromiseError(err))->Promise.resolve,
+        Promise.then_(
+          result => success(result)->Promise.resolve,
+          AWS.DynamoDB.PutItemCommand.send(db, params),
+        ),
+      ),
+    )
   }
 }
 
@@ -66,25 +72,30 @@ module Read = {
       )->AWS.DynamoDB.QueryCommand.make
   }
 
-  let make: (Params.t, db) => Future.t<data> = (params, db, error, success) =>
-    AWS.DynamoDB.QueryCommand.send(db, params)
-    |> Promise.then_(result => success(result)->Promise.resolve)
-    |> Promise.catch(err => error(Future.PromiseError(err))->Promise.resolve)
-    |> ignore
+  let make: (Params.t, db) => Future.t<data> = (params, db) => (error, success) =>
+    ignore(
+      Promise.catch(
+        err => error(Future.PromiseError(err))->Promise.resolve,
+        Promise.then_(
+          result => success(result)->Promise.resolve,
+          AWS.DynamoDB.QueryCommand.send(db, params),
+        ),
+      ),
+    )
 }
 
 module Grades = {
   type t = Genesis.t
 
   let decode: Decode.t<t> = Decode.object((field): t => {
-    partition_key: field.required(. "partition_key", AWS.DynamoDB.Decode.string),
-    sort_key: field.required(. "sort_key", AWS.DynamoDB.Decode.string),
-    studentid: field.required(. "studentid", AWS.DynamoDB.Decode.int),
-    schoolyear: field.required(. "schoolyear", AWS.DynamoDB.Decode.string),
-    mp: field.required(. "mp", AWS.DynamoDB.Decode.int),
-    course: field.required(. "course", AWS.DynamoDB.Decode.string),
-    unixstamp: field.required(. "unixstamp", AWS.DynamoDB.Decode.float),
-    grade: field.required(. "grade", AWS.DynamoDB.Decode.float),
+    partition_key: field.required("partition_key", AWS.DynamoDB.Decode.string),
+    sort_key: field.required("sort_key", AWS.DynamoDB.Decode.string),
+    studentid: field.required("studentid", AWS.DynamoDB.Decode.int),
+    schoolyear: field.required("schoolyear", AWS.DynamoDB.Decode.string),
+    mp: field.required("mp", AWS.DynamoDB.Decode.int),
+    course: field.required("course", AWS.DynamoDB.Decode.string),
+    unixstamp: field.required("unixstamp", AWS.DynamoDB.Decode.float),
+    grade: field.required("grade", AWS.DynamoDB.Decode.float),
   })
 
   let create = (db, ~grade: t) => {
@@ -138,15 +149,18 @@ module Grades = {
 
       json
       ->Option.map(json =>
-        json->Array.reduce([], (items: array<t>, json) => {
-          switch json->Json.decode(decode) {
-          | Ok(item) => items->Array.concat([item])
-          | Error(parseError) => {
-              Console.error("unable to parse items: " ++ parseError)
-              items
+        json->Array.reduce(
+          [],
+          (items: array<t>, json) => {
+            switch json->Json.decode(decode) {
+            | Ok(item) => items->Array.concat([item])
+            | Error(parseError) => {
+                Console.error("unable to parse items: " ++ parseError)
+                items
+              }
             }
-          }
-        })
+          },
+        )
       )
       ->Option.getWithDefault([])
     })
@@ -166,9 +180,9 @@ module Filters = {
   }
 
   let decode: Decode.t<db_t> = Decode.object((field): db_t => {
-    studentid: field.required(. "studentid", AWS.DynamoDB.Decode.int),
-    schoolyear: field.required(. "schoolyear", AWS.DynamoDB.Decode.string),
-    mp: field.required(. "mp", AWS.DynamoDB.Decode.int),
+    studentid: field.required("studentid", AWS.DynamoDB.Decode.int),
+    schoolyear: field.required("schoolyear", AWS.DynamoDB.Decode.string),
+    mp: field.required("mp", AWS.DynamoDB.Decode.int),
   })
 
   let create = (db, ~filter: db_t) => {
@@ -181,10 +195,14 @@ module Filters = {
     Create.Params.make(item)->Create.make(db)->Future.map(_ => filter)
   }
 
-  let filtersByYear = Array.reduce(_, StringMap.empty, (map, filter) => {
-    let key = filter.schoolyear
-    map->StringMap.getWithDefault(key, [])->Belt.Array.concat([filter]) |> map->StringMap.set(key)
-  })
+  let filtersByYear = xs =>
+    Array.reduce(xs, StringMap.empty, (map, filter) => {
+      let key = filter.schoolyear
+      let previous = StringMap.getWithDefault(map, key, [])
+      let updated = Belt.Array.concat(previous, [filter])
+
+      StringMap.set(map, key, updated)
+    })
 
   let read = (db, ~studentid: Genesis.studentid, ~schoolyear=?, ()): Future.t<array<t>> => {
     let expressionAttributeValues = [
@@ -210,21 +228,27 @@ module Filters = {
       items
       ->Option.map(json =>
         json
-        ->Array.reduce([], (items, json) => {
-          switch json->Json.decode(decode) {
-          | Ok(item) => items->Array.concat([item])
-          | Error(parseError) => {
-              Console.error("unable to parse items: " ++ parseError)
-              items
+        ->Array.reduce(
+          [],
+          (items, json) => {
+            switch json->Json.decode(decode) {
+            | Ok(item) => items->Array.concat([item])
+            | Error(parseError) => {
+                Console.error("unable to parse items: " ++ parseError)
+                items
+              }
             }
-          }
-        })
+          },
+        )
         ->filtersByYear
-        ->StringMap.reduce([], (filters, schoolyear, mps) => {
-          let mps = mps->Array.map(({mp}) => mp)
+        ->StringMap.reduce(
+          [],
+          (filters, schoolyear, mps) => {
+            let mps = mps->Array.map(({mp}) => mp)
 
-          filters->Array.concat([{schoolyear: schoolyear, mps: mps}])
-        })
+            filters->Array.concat([{schoolyear, mps}])
+          },
+        )
       )
       ->Option.getWithDefault([])
     })

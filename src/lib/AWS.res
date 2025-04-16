@@ -60,7 +60,7 @@ module DynamoDB = {
       s: option<string>,
     }
 
-    let obj = Json.Decode.object(field => {
+    let obj = Json.Decode.object((. field) => {
       n: field.optional(. "N", Json.Decode.string),
       s: field.optional(. "S", Json.Decode.string),
     })
