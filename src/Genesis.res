@@ -28,7 +28,7 @@ let login = (instance, username, password) =>
 
 let makeSortKey = (schoolyear, mp, course, unixstamp) =>
   Js.String.replaceByRe(
-    %re("/\\W/g"),
+    %re("/\W/g"),
     "",
     schoolyear ++ (string_of_int(mp) ++ (course ++ Js.Float.toString(unixstamp))),
   )
@@ -49,10 +49,11 @@ let gradeHasChanged = (oldGrades, {course, grade}) =>
 
 let cleanGrades = (schoolyear, studentid, mp, values) =>
   List.reduce(values, list{}, (grades, {Cheerio.course: course, grade}) =>
-    switch grade {
-    | Some(grade) =>
+    switch (course, grade) {
+    | ("", _) => grades
+    | (course, Some(grade)) =>
       List.concat(list{makeGrade(schoolyear, mp, studentid, course, grade, unixstamp)}, grades)
-    | None => grades
+    | _ => grades
     }
   )
 

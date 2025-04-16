@@ -155,7 +155,7 @@ module Make = (
 
                 let oldGradesDict = oldGrades->Future.map(
                   items =>
-                    Array.reduce(
+                    Array.reduceRight(
                       items,
                       Js.Dict.empty(),
                       (dict, {Genesis.course: course, grade}) => {
