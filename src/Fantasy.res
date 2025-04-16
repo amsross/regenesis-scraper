@@ -7,10 +7,10 @@ module Apply = (
 ) => {
   let ap: 'a 'b. (T.t<'a => 'b>, T.t<'a>) => T.t<'b> = (f, m) => T.flatMap(f, f => T.map(m, f))
 
-  let liftA2: 'a 'b 'c. (T.t<'a>, T.t<'b>, ('a, 'b) => 'c) => T.t<'c> = (a, b, f) =>
+  let liftA2: 'a 'b 'c. (T.t<'a>, T.t<'b>, 'a => 'b => 'c) => T.t<'c> = (a, b, f) =>
     ap(T.map(a, f), b)
 
-  let liftA3: 'a 'b 'c 'd. (T.t<'a>, T.t<'b>, T.t<'c>, ('a, 'b, 'c) => 'd) => T.t<'d> = (
+  let liftA3: 'a 'b 'c 'd. (T.t<'a>, T.t<'b>, T.t<'c>, 'a => 'b => 'c => 'd) => T.t<'d> = (
     a,
     b,
     c,
@@ -22,6 +22,6 @@ module Apply = (
     T.t<'b>,
     T.t<'c>,
     T.t<'d>,
-    ('a, 'b, 'c, 'd) => 'e,
+    'a => 'b => 'c => 'd => 'e,
   ) => T.t<'e> = (a, b, c, d, f) => a->T.map(f)->ap(b)->ap(c)->ap(d)
 }

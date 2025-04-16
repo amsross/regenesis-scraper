@@ -4,9 +4,9 @@ exception PromiseError(Promise.error)
 
 type t<'data> = (exn => unit, 'data => unit) => unit
 
-let pure: 'data => t<'data> = (a, _, success) => success(a)
+let pure: 'data => t<'data> = a => (_, success) => success(a)
 
-and flat_map: (t<'a>, 'a => t<'b>) => t<'b> = (callback, f, error, success) =>
+and flat_map: (t<'a>, 'a => t<'b>) => t<'b> = (callback, f) => (error, success) =>
   callback(error, x => f(x)(error, success))
 
 let apply: (t<'a => 'b>, t<'a>) => t<'b> = (f, a) =>
@@ -18,13 +18,15 @@ and fork: (t<'data>, exn => unit, 'data => unit) => unit = (future, error, succe
   future(err => error(err), data => success(data))
 
 let to_promise: t<'a> => Promise.t<'a> = future =>
-  Promise.make((~resolve, ~reject) => fork(future, err => reject(. err), data => resolve(. data)))
+  Promise.make((~resolve, ~reject) => fork(future, err => reject(err), data => resolve(data)))
 
-and from_promise: Promise.t<'a> => t<'a> = (promise, error, success) =>
-  promise
-  |> Promise.then_(success' => Promise.resolve(success(success')))
-  |> Promise.catch(err => Promise.resolve(error(PromiseError(err))))
-  |> ignore
+and from_promise: Promise.t<'a> => t<'a> = promise => (error, success) =>
+  ignore(
+    Promise.catch(
+      err => Promise.resolve(error(PromiseError(err))),
+      Promise.then_(success' => Promise.resolve(success(success')), promise),
+    ),
+  )
 
-let liftA2: 'a 'b 'c. (('a, 'b) => 'c, t<'a>, t<'b>) => t<'c> = (fn, a, b) =>
+let liftA2: 'a 'b 'c. ('a => 'b => 'c, t<'a>, t<'b>) => t<'c> = (fn, a, b) =>
   pure(fn)->apply(a)->apply(b)

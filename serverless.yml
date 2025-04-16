@@ -60,7 +60,8 @@ custom:
 
 functions:
   filters_read:
-    handler: dist.filters_read
+    # handler: dist.filters_read
+    handler: lib/js/src/Handler.filters_read
     events:
       - http:
           method: GET
@@ -71,7 +72,8 @@ functions:
           path: /filters/{studentid}/{schoolyear}
           cors: true
   grades_read:
-    handler: dist.grades_read
+    # handler: dist.grades_read
+    handler: lib/js/src/Handler.grades_read
     events:
       - http:
           method: GET
@@ -90,9 +92,14 @@ functions:
           path: /grades/{studentid}/{schoolyear}/{mp}
           cors: true
   grades_write:
-    handler: dist.grades_write
+    # handler: dist.grades_write
+    handler: lib/js/src/Handler.grades_write
     timeout: 16
     events:
+      - http:
+          method: GET
+          path: /write/{studentid}
+          cors: true
       - schedule:
           name: update-2501419
           rate: rate(6 hours)

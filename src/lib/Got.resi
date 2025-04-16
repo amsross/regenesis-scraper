@@ -1,4 +1,4 @@
-type instance
+type instance = {"defaults": Js.Dict.t<string>}
 type response<'header> = {
   "statusCode": int,
   "statusMessage": string,

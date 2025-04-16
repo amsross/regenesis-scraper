@@ -10,15 +10,10 @@
     "in-source": false
   },
   "suffix": ".js",
-  "bs-dependencies": [
-    "@glennsl/rescript-json-combinators"
-  ],
-  "bsc-flags": [
-    "-open JsonCombinators"
-  ],
+  "bs-dependencies": ["@rescript/core", "@glennsl/rescript-json-combinators"],
+  "bsc-flags": ["-open RescriptCore", "-open JsonCombinators"],
   "warnings": {
     "error": "+101"
   },
-  "namespace": true,
-  "refmt": 3
+  "namespace": true
 }
